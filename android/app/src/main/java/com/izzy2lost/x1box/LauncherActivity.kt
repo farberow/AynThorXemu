@@ -93,6 +93,8 @@ class LauncherActivity : Activity() {
       if (frontendLaunch.dvdUri != null) {
         FrontendLaunchHelper.persistReadPermission(this, intent, frontendLaunch.dvdUri)
       }
+      // MainActivity runs in :xemu, so launch data must be flushed before
+      // handing off to the emulator process.
       prefs.edit()
         .putBoolean("skip_game_picker", false)
         .apply {
@@ -107,7 +109,7 @@ class LauncherActivity : Activity() {
             }
           }
         }
-        .apply()
+        .commit()
 
       if (hasMcpx && hasFlash && hasHdd) {
         Log.i(TAG, "Frontend launch resolved via ${frontendLaunch.source}")
