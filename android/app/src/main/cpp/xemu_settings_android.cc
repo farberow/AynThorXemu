@@ -17,6 +17,7 @@
 
 struct config g_config;
 
+static std::string settings_path_storage;
 static const char *settings_path;
 static const char *filename = "xemu.toml";
 static std::string error_msg;
@@ -158,10 +159,13 @@ const char *xemu_settings_get_error_message(void)
 
 void xemu_settings_set_path(const char *path)
 {
-    if (settings_path) {
-        return;
+    if (path && *path) {
+        settings_path_storage = path;
+        settings_path = settings_path_storage.c_str();
+    } else {
+        settings_path_storage.clear();
+        settings_path = NULL;
     }
-    settings_path = path;
 }
 
 const char *xemu_settings_get_base_path(void)
@@ -187,7 +191,8 @@ const char *xemu_settings_get_path(void)
     }
 
     const char *base = xemu_settings_get_base_path();
-    settings_path = g_strdup_printf("%s%s", base, filename);
+    settings_path_storage = std::string(base ? base : "") + filename;
+    settings_path = settings_path_storage.c_str();
     return settings_path;
 }
 

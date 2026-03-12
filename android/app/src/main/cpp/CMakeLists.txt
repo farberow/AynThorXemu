@@ -867,7 +867,6 @@ target_compile_definitions(xemu_core PRIVATE
 
 target_compile_options(xemu_core PRIVATE -g0
   $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-UNDEBUG>
-  $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O2 -march=armv8-a -ffunction-sections -fdata-sections>
 )
 
 target_include_directories(xemu_core PRIVATE
@@ -937,11 +936,6 @@ endif()
 
 target_compile_options(xemu PRIVATE -fexceptions -frtti -g0
   $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-UNDEBUG>
-  $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:-O2 -march=armv8-a -ffunction-sections -fdata-sections>
-)
-
-target_link_options(xemu PRIVATE
-  $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:-Wl,--gc-sections>
 )
 
 target_include_directories(xemu PRIVATE

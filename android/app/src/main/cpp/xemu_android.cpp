@@ -10,6 +10,7 @@
 #include <android/asset_manager_jni.h>
 #include <jni.h>
 
+#include <atomic>
 #include <cctype>
 #include <cstdint>
 #include <climits>
@@ -35,6 +36,7 @@ extern "C" AddfdInfo* monitor_fdset_add_fd(int fd, bool has_fdset_id,
 namespace {
 constexpr const char* kLogTag = "xemu-android";
 constexpr const char* kPrefsName = "x1box_prefs";
+static std::atomic<bool> g_qemu_init_started{false};
 
 static JNIEnv* GetEnv();
 static jobject GetActivity(JNIEnv* env);
@@ -1039,8 +1041,14 @@ static int SDLCALL QemuThreadMain(void* data) {
 }
 
 extern "C" int xemu_android_main(int argc, char** argv) {
+  bool expected = false;
+  if (!g_qemu_init_started.compare_exchange_strong(expected, true)) {
+    LogError("xemu_android_main: qemu_init re-entry detected; stale :xemu process reuse");
+    return 1;
+  }
   if (!qemu_main) {
     LogError("xemu core not linked; qemu_main missing");
+    g_qemu_init_started.store(false);
     return 1;
   }
   LogInfo("xemu_android_main: qemu_init");

@@ -7,6 +7,7 @@ import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -56,6 +57,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   private var comboTriggered = false
   private var startupSnapshotSlot: Int? = null
   private var startupSnapshotLoadScheduled = false
+  @Volatile private var processTerminationScheduled = false
 
   override fun createSDLSurface(context: Context): SDLSurface {
     return super.createSDLSurface(context).apply {
@@ -292,6 +294,11 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
     Log.i(TAG, "onDestroy()")
     inGameMenuDialog?.dismiss()
     inGameMenuDialog = null
+    val shouldTerminateProcess = isFinishing && !isChangingConfigurations
+
+    if (shouldTerminateProcess) {
+      terminateXemuProcessSoon("activity finish")
+    }
 
     // Unregister virtual controller
     try {
@@ -680,7 +687,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
           2 -> showSaveStateDialog()
           3 -> showLoadStateDialog()
           4 -> exitToGameLibrary()
-          5 -> finishAffinity()
+          5 -> quitApp()
         }
       }
       .setOnDismissListener {
@@ -698,7 +705,30 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
     startActivity(intent)
+    terminateXemuProcessSoon("exit to library")
     finish()
+  }
+
+  private fun quitApp() {
+    terminateXemuProcessSoon("quit app")
+    finishAffinity()
+  }
+
+  private fun terminateXemuProcessSoon(reason: String) {
+    if (processTerminationScheduled) {
+      return
+    }
+    processTerminationScheduled = true
+
+    Thread {
+      try {
+        Thread.sleep(350)
+      } catch (_: InterruptedException) {
+        Thread.currentThread().interrupt()
+      }
+      Log.i(TAG, "Terminating :xemu process after $reason")
+      Process.killProcess(Process.myPid())
+    }.start()
   }
 
   override fun getLibraries(): Array<String> = arrayOf(
