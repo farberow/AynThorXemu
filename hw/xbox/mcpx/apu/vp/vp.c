@@ -563,7 +563,8 @@ static void fe_method(MCPXAPUState *d, uint32_t method, uint32_t argument)
             DPRINTF("idle voice %d\n", argument);
             d->set_irq = true;
         } else {
-            assert(false);
+            DPRINTF("ignoring idle voice %d without FETFORCE1 request\n",
+                    argument);
         }
         break;
     default:

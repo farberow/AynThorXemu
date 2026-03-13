@@ -23,6 +23,7 @@ static bool xemu_snapshots_dirty = true;
 static GLuint g_snapshot_display_tex = 0;
 static bool g_snapshot_display_flip = false;
 static SDL_atomic_t g_snapshot_pending = { 0 };
+static SDL_atomic_t g_reboot_pending = { 0 };
 
 #define SNAPSHOT_PREVIEW_WIDTH  320
 #define SNAPSHOT_PREVIEW_HEIGHT 240
@@ -391,6 +392,11 @@ static struct {
 
 void xemu_android_process_snapshot_request(void)
 {
+    if (SDL_AtomicCAS(&g_reboot_pending, 1, 0)) {
+        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+        return;
+    }
+
     if (SDL_AtomicGet(&g_snapshot_pending) == 0) {
         return;
     }
@@ -468,4 +474,13 @@ Java_com_izzy2lost_x1box_MainActivity_nativeLoadSnapshot(
 {
     (void)obj;
     return dispatch_snapshot(env, name, SNAP_LOAD);
+}
+
+JNIEXPORT void JNICALL
+Java_com_izzy2lost_x1box_MainActivity_nativeRebootSystem(
+        JNIEnv *env, jobject obj)
+{
+    (void)env;
+    (void)obj;
+    SDL_AtomicSet(&g_reboot_pending, 1);
 }

@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputLayout
 import java.io.File
@@ -29,6 +30,21 @@ class SettingsActivity : AppCompatActivity() {
   private data class EepromVideoOption(
     val value: XboxEepromEditor.VideoStandard,
     val labelRes: Int,
+  )
+
+  private data class EepromAspectRatioOption(
+    val value: XboxEepromEditor.AspectRatio,
+    val labelRes: Int,
+  )
+
+  private data class EepromRefreshRateOption(
+    val value: XboxEepromEditor.RefreshRate,
+    val labelRes: Int,
+  )
+
+  private data class CacheClearResult(
+    val deletedEntries: Int,
+    val hadFailures: Boolean,
   )
 
   private val eepromLanguageOptions = listOf(
@@ -50,6 +66,18 @@ class SettingsActivity : AppCompatActivity() {
     EepromVideoOption(XboxEepromEditor.VideoStandard.PAL_M, R.string.settings_eeprom_video_standard_pal_m),
   )
 
+  private val eepromAspectRatioOptions = listOf(
+    EepromAspectRatioOption(XboxEepromEditor.AspectRatio.NORMAL, R.string.settings_eeprom_aspect_ratio_normal),
+    EepromAspectRatioOption(XboxEepromEditor.AspectRatio.WIDESCREEN, R.string.settings_eeprom_aspect_ratio_widescreen),
+    EepromAspectRatioOption(XboxEepromEditor.AspectRatio.LETTERBOX, R.string.settings_eeprom_aspect_ratio_letterbox),
+  )
+
+  private val eepromRefreshRateOptions = listOf(
+    EepromRefreshRateOption(XboxEepromEditor.RefreshRate.DEFAULT, R.string.settings_eeprom_refresh_rate_default),
+    EepromRefreshRateOption(XboxEepromEditor.RefreshRate.HZ_60, R.string.settings_eeprom_refresh_rate_60),
+    EepromRefreshRateOption(XboxEepromEditor.RefreshRate.HZ_50, R.string.settings_eeprom_refresh_rate_50),
+  )
+
   private var pendingVulkanUri: String? = null
   private var pendingVulkanName: String? = null
   private var clearVulkan = false
@@ -58,11 +86,20 @@ class SettingsActivity : AppCompatActivity() {
   private lateinit var tvEepromStatus: TextView
   private lateinit var inputEepromLanguage: TextInputLayout
   private lateinit var inputEepromVideoStandard: TextInputLayout
+  private lateinit var inputEepromAspectRatio: TextInputLayout
+  private lateinit var inputEepromRefreshRate: TextInputLayout
   private lateinit var dropdownEepromLanguage: AutoCompleteTextView
   private lateinit var dropdownEepromVideoStandard: AutoCompleteTextView
+  private lateinit var dropdownEepromAspectRatio: AutoCompleteTextView
+  private lateinit var dropdownEepromRefreshRate: AutoCompleteTextView
+  private lateinit var switchEeprom480p: MaterialSwitch
+  private lateinit var switchEeprom720p: MaterialSwitch
+  private lateinit var switchEeprom1080i: MaterialSwitch
 
   private var selectedEepromLanguage = XboxEepromEditor.Language.ENGLISH
   private var selectedEepromVideoStandard = XboxEepromEditor.VideoStandard.NTSC_M
+  private var selectedEepromAspectRatio = XboxEepromEditor.AspectRatio.NORMAL
+  private var selectedEepromRefreshRate = XboxEepromEditor.RefreshRate.DEFAULT
   private var eepromEditable = false
   private var eepromMissing = false
   private var eepromError = false
@@ -103,14 +140,22 @@ class SettingsActivity : AppCompatActivity() {
     val toggleAudioDriver = findViewById<MaterialButtonToggleGroup>(R.id.toggle_audio_driver)
     val btnSave           = findViewById<MaterialButton>(R.id.btn_settings_save)
     val btnRedoSetup      = findViewById<MaterialButton>(R.id.btn_redo_setup_wizard)
+    val btnClearCache     = findViewById<MaterialButton>(R.id.btn_clear_system_cache)
     tvVulkanDriverName    = findViewById(R.id.tv_vulkan_driver_name)
     val btnVulkanBrowse   = findViewById<MaterialButton>(R.id.btn_vulkan_browse)
     val btnVulkanClear    = findViewById<MaterialButton>(R.id.btn_vulkan_clear)
     tvEepromStatus        = findViewById(R.id.tv_eeprom_status)
     inputEepromLanguage   = findViewById(R.id.input_eeprom_language)
     inputEepromVideoStandard = findViewById(R.id.input_eeprom_video_standard)
+    inputEepromAspectRatio = findViewById(R.id.input_eeprom_aspect_ratio)
+    inputEepromRefreshRate = findViewById(R.id.input_eeprom_refresh_rate)
     dropdownEepromLanguage = findViewById(R.id.dropdown_eeprom_language)
     dropdownEepromVideoStandard = findViewById(R.id.dropdown_eeprom_video_standard)
+    dropdownEepromAspectRatio = findViewById(R.id.dropdown_eeprom_aspect_ratio)
+    dropdownEepromRefreshRate = findViewById(R.id.dropdown_eeprom_refresh_rate)
+    switchEeprom480p = findViewById(R.id.switch_eeprom_480p)
+    switchEeprom720p = findViewById(R.id.switch_eeprom_720p)
+    switchEeprom1080i = findViewById(R.id.switch_eeprom_1080i)
 
     // Load current values
     val renderer = prefs.getString("setting_renderer", "opengl") ?: "opengl"
@@ -198,7 +243,7 @@ class SettingsActivity : AppCompatActivity() {
 
     setupEepromEditor()
 
-    btnSave.setOnClickListener {
+    fun persistSettings(): Pair<Int, Int> {
       val selectedDisplayMode = when (toggleDisplayMode.checkedButtonId) {
         R.id.btn_display_4_3  -> 1
         R.id.btn_display_16_9 -> 2
@@ -263,7 +308,15 @@ class SettingsActivity : AppCompatActivity() {
 
       edit.apply()
 
-      val toastResult = applyEepromEdits()
+      return applyEepromEdits()
+    }
+
+    btnClearCache.setOnClickListener {
+      showClearCacheConfirmation()
+    }
+
+    btnSave.setOnClickListener {
+      val toastResult = persistSettings()
       Toast.makeText(this, toastResult.first, toastResult.second).show()
       finish()
     }
@@ -272,6 +325,8 @@ class SettingsActivity : AppCompatActivity() {
   private fun setupEepromEditor() {
     val languageLabels = eepromLanguageOptions.map { getString(it.labelRes) }
     val videoLabels = eepromVideoOptions.map { getString(it.labelRes) }
+    val aspectRatioLabels = eepromAspectRatioOptions.map { getString(it.labelRes) }
+    val refreshRateLabels = eepromRefreshRateOptions.map { getString(it.labelRes) }
 
     dropdownEepromLanguage.setAdapter(
       ArrayAdapter(this, android.R.layout.simple_list_item_1, languageLabels)
@@ -279,12 +334,24 @@ class SettingsActivity : AppCompatActivity() {
     dropdownEepromVideoStandard.setAdapter(
       ArrayAdapter(this, android.R.layout.simple_list_item_1, videoLabels)
     )
+    dropdownEepromAspectRatio.setAdapter(
+      ArrayAdapter(this, android.R.layout.simple_list_item_1, aspectRatioLabels)
+    )
+    dropdownEepromRefreshRate.setAdapter(
+      ArrayAdapter(this, android.R.layout.simple_list_item_1, refreshRateLabels)
+    )
 
     dropdownEepromLanguage.setOnItemClickListener { _, _, position, _ ->
       selectedEepromLanguage = eepromLanguageOptions[position].value
     }
     dropdownEepromVideoStandard.setOnItemClickListener { _, _, position, _ ->
       selectedEepromVideoStandard = eepromVideoOptions[position].value
+    }
+    dropdownEepromAspectRatio.setOnItemClickListener { _, _, position, _ ->
+      selectedEepromAspectRatio = eepromAspectRatioOptions[position].value
+    }
+    dropdownEepromRefreshRate.setOnItemClickListener { _, _, position, _ ->
+      selectedEepromRefreshRate = eepromRefreshRateOptions[position].value
     }
 
     val eepromFile = resolveEepromFile()
@@ -295,6 +362,15 @@ class SettingsActivity : AppCompatActivity() {
       setEepromEditorEnabled(false)
       setEepromLanguageSelection(selectedEepromLanguage)
       setEepromVideoSelection(selectedEepromVideoStandard)
+      setEepromVideoSettingsSelection(
+        XboxEepromEditor.VideoSettings(
+          allow480p = false,
+          allow720p = false,
+          allow1080i = false,
+          aspectRatio = selectedEepromAspectRatio,
+          refreshRate = selectedEepromRefreshRate,
+        )
+      )
       tvEepromStatus.text = getString(
         R.string.settings_eeprom_status_missing,
         eepromFile.absolutePath,
@@ -310,10 +386,12 @@ class SettingsActivity : AppCompatActivity() {
       setEepromEditorEnabled(true)
       setEepromLanguageSelection(snapshot.language)
       setEepromVideoSelection(snapshot.videoStandard)
+      setEepromVideoSettingsSelection(snapshot.videoSettings)
 
       val hasUnknownValues =
         snapshot.rawLanguage != snapshot.language.id ||
-        snapshot.rawVideoStandard != snapshot.videoStandard.id
+        snapshot.rawVideoStandard != snapshot.videoStandard.id ||
+        snapshot.hasManagedVideoSettingsMismatch
       tvEepromStatus.text = if (hasUnknownValues) {
         getString(R.string.settings_eeprom_status_unknown, eepromFile.absolutePath)
       } else {
@@ -326,6 +404,15 @@ class SettingsActivity : AppCompatActivity() {
       setEepromEditorEnabled(false)
       setEepromLanguageSelection(selectedEepromLanguage)
       setEepromVideoSelection(selectedEepromVideoStandard)
+      setEepromVideoSettingsSelection(
+        XboxEepromEditor.VideoSettings(
+          allow480p = false,
+          allow720p = false,
+          allow1080i = false,
+          aspectRatio = selectedEepromAspectRatio,
+          refreshRate = selectedEepromRefreshRate,
+        )
+      )
       tvEepromStatus.text = getString(
         R.string.settings_eeprom_status_invalid,
         eepromFile.absolutePath,
@@ -337,6 +424,15 @@ class SettingsActivity : AppCompatActivity() {
       setEepromEditorEnabled(false)
       setEepromLanguageSelection(selectedEepromLanguage)
       setEepromVideoSelection(selectedEepromVideoStandard)
+      setEepromVideoSettingsSelection(
+        XboxEepromEditor.VideoSettings(
+          allow480p = false,
+          allow720p = false,
+          allow1080i = false,
+          aspectRatio = selectedEepromAspectRatio,
+          refreshRate = selectedEepromRefreshRate,
+        )
+      )
       tvEepromStatus.text = getString(
         R.string.settings_eeprom_status_error,
         eepromFile.absolutePath,
@@ -357,6 +453,13 @@ class SettingsActivity : AppCompatActivity() {
         resolveEepromFile(),
         selectedEepromLanguage,
         selectedEepromVideoStandard,
+        XboxEepromEditor.VideoSettings(
+          allow480p = switchEeprom480p.isChecked,
+          allow720p = switchEeprom720p.isChecked,
+          allow1080i = switchEeprom1080i.isChecked,
+          aspectRatio = selectedEepromAspectRatio,
+          refreshRate = selectedEepromRefreshRate,
+        ),
       )
       if (changed) {
         Pair(R.string.settings_saved_with_eeprom, Toast.LENGTH_SHORT)
@@ -371,8 +474,15 @@ class SettingsActivity : AppCompatActivity() {
   private fun setEepromEditorEnabled(enabled: Boolean) {
     inputEepromLanguage.isEnabled = enabled
     inputEepromVideoStandard.isEnabled = enabled
+    inputEepromAspectRatio.isEnabled = enabled
+    inputEepromRefreshRate.isEnabled = enabled
     dropdownEepromLanguage.isEnabled = enabled
     dropdownEepromVideoStandard.isEnabled = enabled
+    dropdownEepromAspectRatio.isEnabled = enabled
+    dropdownEepromRefreshRate.isEnabled = enabled
+    switchEeprom480p.isEnabled = enabled
+    switchEeprom720p.isEnabled = enabled
+    switchEeprom1080i.isEnabled = enabled
   }
 
   private fun setEepromLanguageSelection(language: XboxEepromEditor.Language) {
@@ -387,6 +497,134 @@ class SettingsActivity : AppCompatActivity() {
     val option = eepromVideoOptions.firstOrNull { it.value == video }
       ?: eepromVideoOptions.first()
     dropdownEepromVideoStandard.setText(getString(option.labelRes), false)
+  }
+
+  private fun setEepromVideoSettingsSelection(videoSettings: XboxEepromEditor.VideoSettings) {
+    switchEeprom480p.isChecked = videoSettings.allow480p
+    switchEeprom720p.isChecked = videoSettings.allow720p
+    switchEeprom1080i.isChecked = videoSettings.allow1080i
+    setEepromAspectRatioSelection(videoSettings.aspectRatio)
+    setEepromRefreshRateSelection(videoSettings.refreshRate)
+  }
+
+  private fun setEepromAspectRatioSelection(aspectRatio: XboxEepromEditor.AspectRatio) {
+    selectedEepromAspectRatio = aspectRatio
+    val option = eepromAspectRatioOptions.firstOrNull { it.value == aspectRatio }
+      ?: eepromAspectRatioOptions.first()
+    dropdownEepromAspectRatio.setText(getString(option.labelRes), false)
+  }
+
+  private fun setEepromRefreshRateSelection(refreshRate: XboxEepromEditor.RefreshRate) {
+    selectedEepromRefreshRate = refreshRate
+    val option = eepromRefreshRateOptions.firstOrNull { it.value == refreshRate }
+      ?: eepromRefreshRateOptions.first()
+    dropdownEepromRefreshRate.setText(getString(option.labelRes), false)
+  }
+
+  private fun showClearCacheConfirmation() {
+    MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_Xemu_RoundedDialog)
+      .setTitle(R.string.settings_clear_cache_title)
+      .setMessage(R.string.settings_clear_cache_message)
+      .setPositiveButton(R.string.settings_clear_cache_action) { _, _ ->
+        val result = clearSystemCache()
+        val messageRes = when {
+          result.hadFailures -> R.string.settings_clear_cache_partial
+          result.deletedEntries > 0 -> R.string.settings_clear_cache_success
+          else -> R.string.settings_clear_cache_empty
+        }
+        Toast.makeText(this, getString(messageRes), Toast.LENGTH_SHORT).show()
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  private fun clearSystemCache(): CacheClearResult {
+    var result = CacheClearResult(0, false)
+
+    val cacheRoots = buildList {
+      add(cacheDir)
+      add(codeCacheDir)
+      externalCacheDir?.let { add(it) }
+    }
+    for (root in cacheRoots.distinctBy { it.absolutePath }) {
+      result = mergeCacheClearResults(result, clearDirectoryChildren(root))
+    }
+
+    val persistentRoots = buildList {
+      add(filesDir)
+      getExternalFilesDir(null)?.let { add(it) }
+    }
+    for (root in persistentRoots.distinctBy { it.absolutePath }) {
+      result = mergeCacheClearResults(result, clearPersistentCacheEntries(root))
+    }
+
+    return result
+  }
+
+  private fun clearDirectoryChildren(dir: File?): CacheClearResult {
+    if (dir == null || !dir.exists()) {
+      return CacheClearResult(0, false)
+    }
+
+    val children = dir.listFiles() ?: return CacheClearResult(0, false)
+    var deletedEntries = 0
+    var hadFailures = false
+    for (child in children) {
+      val deleted = runCatching { child.deleteRecursively() }.getOrDefault(false)
+      if (deleted) {
+        deletedEntries++
+      } else {
+        hadFailures = true
+      }
+    }
+    return CacheClearResult(deletedEntries, hadFailures)
+  }
+
+  private fun clearPersistentCacheEntries(root: File): CacheClearResult {
+    if (!root.exists() || !root.isDirectory) {
+      return CacheClearResult(0, false)
+    }
+
+    val children = root.listFiles() ?: return CacheClearResult(0, false)
+    var deletedEntries = 0
+    var hadFailures = false
+
+    for (child in children) {
+      if (isPersistentCacheEntry(child.name)) {
+        val deleted = runCatching { child.deleteRecursively() }.getOrDefault(false)
+        if (deleted) {
+          deletedEntries++
+        } else {
+          hadFailures = true
+        }
+        continue
+      }
+
+      if (child.isDirectory) {
+        val nested = clearPersistentCacheEntries(child)
+        deletedEntries += nested.deletedEntries
+        hadFailures = hadFailures || nested.hadFailures
+      }
+    }
+
+    return CacheClearResult(deletedEntries, hadFailures)
+  }
+
+  private fun isPersistentCacheEntry(name: String): Boolean {
+    return name == "shaders" ||
+      name == "shader_cache_list" ||
+      name.startsWith("scache-") ||
+      name.startsWith("vk_pipeline_cache_")
+  }
+
+  private fun mergeCacheClearResults(
+    first: CacheClearResult,
+    second: CacheClearResult,
+  ): CacheClearResult {
+    return CacheClearResult(
+      deletedEntries = first.deletedEntries + second.deletedEntries,
+      hadFailures = first.hadFailures || second.hadFailures,
+    )
   }
 
   private fun resolveEepromFile(): File {

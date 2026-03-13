@@ -16,6 +16,24 @@ internal object XboxEepromEditor {
 
   private const val VIDEO_STANDARD_OFFSET = 0x58
   private const val LANGUAGE_OFFSET       = 0x90
+  private const val VIDEO_SETTINGS_OFFSET = 0x94
+
+  private const val VIDEO_SETTINGS_WIDESCREEN = 0x00010000u
+  private const val VIDEO_SETTINGS_720P       = 0x00020000u
+  private const val VIDEO_SETTINGS_1080I      = 0x00040000u
+  private const val VIDEO_SETTINGS_480P       = 0x00080000u
+  private const val VIDEO_SETTINGS_LETTERBOX  = 0x00100000u
+  private const val VIDEO_SETTINGS_60HZ       = 0x00400000u
+  private const val VIDEO_SETTINGS_50HZ       = 0x00800000u
+
+  private val MANAGED_VIDEO_SETTINGS_MASK =
+    VIDEO_SETTINGS_WIDESCREEN or
+      VIDEO_SETTINGS_720P or
+      VIDEO_SETTINGS_1080I or
+      VIDEO_SETTINGS_480P or
+      VIDEO_SETTINGS_LETTERBOX or
+      VIDEO_SETTINGS_60HZ or
+      VIDEO_SETTINGS_50HZ
 
   enum class Language(val id: UInt) {
     ENGLISH(0x00000001u),
@@ -44,12 +62,71 @@ internal object XboxEepromEditor {
     }
   }
 
+  enum class AspectRatio(val bits: UInt) {
+    NORMAL(0u),
+    WIDESCREEN(VIDEO_SETTINGS_WIDESCREEN),
+    LETTERBOX(VIDEO_SETTINGS_LETTERBOX);
+
+    companion object {
+      fun fromBits(bits: UInt): AspectRatio? = when (bits and
+        (VIDEO_SETTINGS_WIDESCREEN or VIDEO_SETTINGS_LETTERBOX)) {
+        0u -> NORMAL
+        VIDEO_SETTINGS_WIDESCREEN -> WIDESCREEN
+        VIDEO_SETTINGS_LETTERBOX -> LETTERBOX
+        else -> null
+      }
+    }
+  }
+
+  enum class RefreshRate(val bits: UInt) {
+    DEFAULT(0u),
+    HZ_60(VIDEO_SETTINGS_60HZ),
+    HZ_50(VIDEO_SETTINGS_50HZ);
+
+    companion object {
+      fun fromBits(bits: UInt): RefreshRate? = when (bits and
+        (VIDEO_SETTINGS_60HZ or VIDEO_SETTINGS_50HZ)) {
+        0u -> DEFAULT
+        VIDEO_SETTINGS_60HZ -> HZ_60
+        VIDEO_SETTINGS_50HZ -> HZ_50
+        else -> null
+      }
+    }
+  }
+
+  data class VideoSettings(
+    val allow480p: Boolean,
+    val allow720p: Boolean,
+    val allow1080i: Boolean,
+    val aspectRatio: AspectRatio,
+    val refreshRate: RefreshRate,
+  ) {
+    fun toManagedBits(): UInt {
+      var bits = aspectRatio.bits or refreshRate.bits
+      if (allow480p) {
+        bits = bits or VIDEO_SETTINGS_480P
+      }
+      if (allow720p) {
+        bits = bits or VIDEO_SETTINGS_720P
+      }
+      if (allow1080i) {
+        bits = bits or VIDEO_SETTINGS_1080I
+      }
+      return bits
+    }
+  }
+
   data class Snapshot(
     val language: Language,
     val videoStandard: VideoStandard,
+    val videoSettings: VideoSettings,
     val rawLanguage: UInt,
     val rawVideoStandard: UInt,
-  )
+    val rawVideoSettings: UInt,
+  ) {
+    val hasManagedVideoSettingsMismatch: Boolean
+      get() = (rawVideoSettings and MANAGED_VIDEO_SETTINGS_MASK) != videoSettings.toManagedBits()
+  }
 
   @Throws(IOException::class, IllegalArgumentException::class)
   fun load(file: File): Snapshot {
@@ -58,28 +135,49 @@ internal object XboxEepromEditor {
 
     val rawLanguage = readLeUInt32(data, LANGUAGE_OFFSET)
     val rawVideoStandard = readLeUInt32(data, VIDEO_STANDARD_OFFSET)
+    val rawVideoSettings = readLeUInt32(data, VIDEO_SETTINGS_OFFSET)
 
     return Snapshot(
       language = Language.fromId(rawLanguage) ?: Language.ENGLISH,
       videoStandard = VideoStandard.fromId(rawVideoStandard) ?: VideoStandard.NTSC_M,
+      videoSettings = VideoSettings(
+        allow480p = (rawVideoSettings and VIDEO_SETTINGS_480P) != 0u,
+        allow720p = (rawVideoSettings and VIDEO_SETTINGS_720P) != 0u,
+        allow1080i = (rawVideoSettings and VIDEO_SETTINGS_1080I) != 0u,
+        aspectRatio = AspectRatio.fromBits(rawVideoSettings) ?: AspectRatio.NORMAL,
+        refreshRate = RefreshRate.fromBits(rawVideoSettings) ?: RefreshRate.DEFAULT,
+      ),
       rawLanguage = rawLanguage,
       rawVideoStandard = rawVideoStandard,
+      rawVideoSettings = rawVideoSettings,
     )
   }
 
   @Throws(IOException::class, IllegalArgumentException::class)
-  fun apply(file: File, language: Language, videoStandard: VideoStandard): Boolean {
+  fun apply(
+    file: File,
+    language: Language,
+    videoStandard: VideoStandard,
+    videoSettings: VideoSettings,
+  ): Boolean {
     val data = file.readBytes()
     ensureValidSize(file, data)
 
     val currentLanguage = readLeUInt32(data, LANGUAGE_OFFSET)
     val currentVideoStandard = readLeUInt32(data, VIDEO_STANDARD_OFFSET)
-    if (currentLanguage == language.id && currentVideoStandard == videoStandard.id) {
+    val currentVideoSettings = readLeUInt32(data, VIDEO_SETTINGS_OFFSET)
+    val nextVideoSettings =
+      (currentVideoSettings and MANAGED_VIDEO_SETTINGS_MASK.inv()) or videoSettings.toManagedBits()
+    if (currentLanguage == language.id &&
+      currentVideoStandard == videoStandard.id &&
+      currentVideoSettings == nextVideoSettings
+    ) {
       return false
     }
 
     writeLeUInt32(data, LANGUAGE_OFFSET, language.id)
     writeLeUInt32(data, VIDEO_STANDARD_OFFSET, videoStandard.id)
+    writeLeUInt32(data, VIDEO_SETTINGS_OFFSET, nextVideoSettings)
 
     val factoryChecksum = xboxChecksum(data, FACTORY_CHECKSUM_START, FACTORY_CHECKSUM_LENGTH)
     writeLeUInt32(data, FACTORY_CHECKSUM_OFFSET, factoryChecksum)

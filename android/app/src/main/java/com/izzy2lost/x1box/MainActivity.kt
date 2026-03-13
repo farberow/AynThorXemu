@@ -434,6 +434,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
 
   private external fun nativeSaveSnapshot(name: String): Boolean
   private external fun nativeLoadSnapshot(name: String): Boolean
+  private external fun nativeRebootSystem()
 
   private fun slotName(slot: Int) = "android_slot_$slot"
 
@@ -699,6 +700,18 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
     showSnapshotSlotDialog(save = false)
   }
 
+  private fun showRebootSystemConfirmation() {
+    MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_Xemu_RoundedDialog)
+      .setTitle(R.string.in_game_menu_reboot_title)
+      .setMessage(R.string.in_game_menu_reboot_message)
+      .setPositiveButton(R.string.in_game_menu_reboot_action) { _, _ ->
+        onScreenController?.resetAllInputs()
+        nativeRebootSystem()
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
   private fun showInGameMenu() {
     swipeUpGestureRecognizer.reset()
     if (inGameMenuDialog?.isShowing == true) {
@@ -714,6 +727,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
       },
       getString(R.string.in_game_menu_save_state),
       getString(R.string.in_game_menu_load_state),
+      getString(R.string.in_game_menu_reboot_system),
       getString(R.string.in_game_menu_exit_to_library),
       getString(R.string.in_game_menu_quit_app),
     )
@@ -726,8 +740,9 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
           1 -> toggleOnScreenController()
           2 -> showSaveStateDialog()
           3 -> showLoadStateDialog()
-          4 -> exitToGameLibrary()
-          5 -> quitApp()
+          4 -> showRebootSystemConfirmation()
+          5 -> exitToGameLibrary()
+          6 -> quitApp()
         }
       }
       .setOnDismissListener {
