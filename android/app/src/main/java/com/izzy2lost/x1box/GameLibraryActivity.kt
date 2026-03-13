@@ -114,6 +114,7 @@ class GameLibraryActivity : AppCompatActivity() {
   private lateinit var gamesListContainer: LinearLayout
   private lateinit var gamesGridContainer: LinearLayout
   private lateinit var btnChangeFolder: MaterialButton
+  private lateinit var btnBootDashboard: MaterialButton
   private lateinit var btnSettings: MaterialButton
   private lateinit var btnSnapshots: MaterialButton
   private lateinit var btnConvertIso: MaterialButton
@@ -167,6 +168,7 @@ class GameLibraryActivity : AppCompatActivity() {
     gamesListContainer = findViewById(R.id.library_games_container)
     gamesGridContainer = findViewById(R.id.library_games_grid_container)
     btnChangeFolder = findViewById(R.id.btn_change_games_folder)
+    btnBootDashboard = findViewById(R.id.btn_boot_dashboard)
     btnSettings = findViewById(R.id.btn_settings)
     btnSnapshots = findViewById(R.id.btn_snapshots)
     btnConvertIso = findViewById(R.id.btn_convert_iso)
@@ -188,6 +190,13 @@ class GameLibraryActivity : AppCompatActivity() {
         return@setOnClickListener
       }
       pickGamesFolder.launch(gamesFolderUri)
+    }
+    btnBootDashboard.setOnClickListener {
+      if (isConvertingIso) {
+        Toast.makeText(this, getString(R.string.library_convert_busy), Toast.LENGTH_SHORT).show()
+        return@setOnClickListener
+      }
+      launchDashboard()
     }
     btnSettings.setOnClickListener {
       startActivity(Intent(this, SettingsActivity::class.java))
@@ -261,6 +270,40 @@ class GameLibraryActivity : AppCompatActivity() {
   private fun launchMainActivityForRestart() {
     startActivity(Intent(this, MainActivity::class.java))
     finish()
+  }
+
+  private fun launchDashboard() {
+    if (!hasAccessibleCoreFiles()) {
+      Toast.makeText(this, getString(R.string.library_boot_dashboard_failed), Toast.LENGTH_LONG).show()
+      return
+    }
+
+    // MainActivity runs in :xemu, so the disc selection must be flushed before
+    // the other process reads SharedPreferences during startup.
+    prefs.edit()
+      .remove("dvdUri")
+      .remove("dvdPath")
+      .putBoolean("skip_game_picker", false)
+      .commit()
+
+    startActivity(Intent(this, MainActivity::class.java))
+    finish()
+  }
+
+  private fun hasAccessibleCoreFiles(): Boolean {
+    return isConfiguredFileAccessible("mcpxPath", "mcpxUri") &&
+      isConfiguredFileAccessible("flashPath", "flashUri") &&
+      isConfiguredFileAccessible("hddPath", "hddUri")
+  }
+
+  private fun isConfiguredFileAccessible(pathKey: String, uriKey: String): Boolean {
+    val localPath = prefs.getString(pathKey, null)
+    if (!localPath.isNullOrBlank() && File(localPath).isFile) {
+      return true
+    }
+
+    val uri = prefs.getString(uriKey, null)?.let(Uri::parse)
+    return uri != null && hasPersistedReadPermission(uri)
   }
 
   private fun slotName(slot: Int) = "android_slot_$slot"

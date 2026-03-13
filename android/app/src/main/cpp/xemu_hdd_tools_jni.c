@@ -14,6 +14,8 @@
 #include "system/block-backend-global-state.h"
 #include "system/block-backend-io.h"
 
+#include "xemu_fatx_import.h"
+
 #include <jni.h>
 #include <pthread.h>
 
@@ -816,4 +818,80 @@ Java_com_izzy2lost_x1box_XboxHddFormatter_00024NativeBridge_nativeInitializeHdd(
     }
 
     (*env)->ReleaseStringUTFChars(env, jpath, path);
+}
+
+JNIEXPORT void JNICALL
+Java_com_izzy2lost_x1box_XboxDashboardImporter_00024NativeBridge_nativeImportDashboard(
+        JNIEnv *env, jobject obj, jstring jhdd_path, jstring jsource_root, jstring jbackup_root)
+{
+    const char *hdd_path;
+    const char *source_root;
+    const char *backup_root;
+    BlockBackend *blk = NULL;
+    Error *err = NULL;
+
+    (void)obj;
+
+    if (!jhdd_path || !jsource_root || !jbackup_root) {
+        android_xbox_hdd_throw_exception(env, "java/io/IOException",
+                                         "Missing HDD path, dashboard source, or backup path.");
+        return;
+    }
+
+    hdd_path = (*env)->GetStringUTFChars(env, jhdd_path, NULL);
+    source_root = (*env)->GetStringUTFChars(env, jsource_root, NULL);
+    backup_root = (*env)->GetStringUTFChars(env, jbackup_root, NULL);
+    if (!hdd_path || !source_root || !backup_root) {
+        if (hdd_path) {
+            (*env)->ReleaseStringUTFChars(env, jhdd_path, hdd_path);
+        }
+        if (source_root) {
+            (*env)->ReleaseStringUTFChars(env, jsource_root, source_root);
+        }
+        if (backup_root) {
+            (*env)->ReleaseStringUTFChars(env, jbackup_root, backup_root);
+        }
+        return;
+    }
+
+    if (!android_xbox_hdd_ensure_block_layer(&err)) {
+        (*env)->ReleaseStringUTFChars(env, jhdd_path, hdd_path);
+        (*env)->ReleaseStringUTFChars(env, jsource_root, source_root);
+        (*env)->ReleaseStringUTFChars(env, jbackup_root, backup_root);
+        android_xbox_hdd_throw_error(env, "java/io/IOException",
+                                     "Failed to initialize HDD tools: ", err);
+        return;
+    }
+
+    {
+        BQL_LOCK_GUARD();
+
+        blk = android_xbox_hdd_open_backend(hdd_path, true, &err);
+        if (!blk) {
+            goto cleanup;
+        }
+
+        if (!xemu_fatx_import_dashboard(blk, source_root, backup_root, &err)) {
+            goto cleanup;
+        }
+
+        if (blk_flush(blk) < 0) {
+            error_setg(&err, "Failed to flush dashboard import writes");
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    if (blk) {
+        blk_drain(blk);
+        blk_unref(blk);
+    }
+
+    (*env)->ReleaseStringUTFChars(env, jhdd_path, hdd_path);
+    (*env)->ReleaseStringUTFChars(env, jsource_root, source_root);
+    (*env)->ReleaseStringUTFChars(env, jbackup_root, backup_root);
+
+    if (err) {
+        android_xbox_hdd_throw_error(env, "java/io/IOException", NULL, err);
+    }
 }

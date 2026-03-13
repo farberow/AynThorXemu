@@ -950,6 +950,7 @@ add_library(xemu SHARED
   xemu_android.cpp
   android_crash_handler.cpp
   vmstate_if_android.c
+  xemu_fatx_import.c
   xemu_hdd_tools_jni.c
 )
 

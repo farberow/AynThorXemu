@@ -632,6 +632,13 @@
             android:layout_marginBottom="6dp"
             android:text="@string/settings_hdd_init_action" />
 
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_import_dashboard"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_dashboard_import_action" />
+
           <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

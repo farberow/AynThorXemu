@@ -86,6 +86,17 @@
             app:iconPadding="8dp" />
 
           <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_boot_dashboard"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/library_boot_dashboard"
+            app:icon="@android:drawable/ic_media_play"
+            app:iconGravity="textStart"
+            app:iconPadding="8dp" />
+
+          <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_settings"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="match_parent"

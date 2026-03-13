@@ -12,12 +12,20 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.documentfile.provider.DocumentFile
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.TextInputLayout
+import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.zip.ZipInputStream
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -46,6 +54,23 @@ class SettingsActivity : AppCompatActivity() {
   private data class CacheClearResult(
     val deletedEntries: Int,
     val hadFailures: Boolean,
+  )
+
+  private data class DashboardImportPlan(
+    val hddFile: File,
+    val workingDir: File,
+    val sourceDir: File,
+    val backupDir: File,
+    val summary: String,
+    val bootNote: String?,
+    val bootAliasCreated: Boolean,
+    val retailBootReady: Boolean,
+  )
+
+  private data class DashboardBootPreparation(
+    val note: String?,
+    val aliasCreated: Boolean,
+    val retailBootReady: Boolean,
   )
 
   private val eepromLanguageOptions = listOf(
@@ -83,10 +108,12 @@ class SettingsActivity : AppCompatActivity() {
   private var pendingVulkanName: String? = null
   private var clearVulkan = false
   private var isInitializingHdd = false
+  private var isImportingDashboard = false
 
   private lateinit var tvVulkanDriverName: TextView
   private lateinit var tvEepromStatus: TextView
   private lateinit var tvHddToolsStatus: TextView
+  private lateinit var btnImportDashboard: MaterialButton
   private lateinit var inputEepromLanguage: TextInputLayout
   private lateinit var inputEepromVideoStandard: TextInputLayout
   private lateinit var inputEepromAspectRatio: TextInputLayout
@@ -114,6 +141,24 @@ class SettingsActivity : AppCompatActivity() {
       pendingVulkanName = getFileName(uri) ?: uri.lastPathSegment ?: "custom_driver.so"
       clearVulkan = false
       tvVulkanDriverName.text = pendingVulkanName
+    }
+
+  private val pickDashboardZip =
+    registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+      uri ?: return@registerForActivityResult
+      persistUriPermission(uri)
+      if (!isZipSelection(uri)) {
+        Toast.makeText(this, R.string.settings_dashboard_import_pick_zip_error, Toast.LENGTH_LONG).show()
+        return@registerForActivityResult
+      }
+      prepareDashboardImportFromZip(uri)
+    }
+
+  private val pickDashboardFolder =
+    registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+      uri ?: return@registerForActivityResult
+      persistUriPermission(uri)
+      prepareDashboardImportFromFolder(uri)
     }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,6 +190,7 @@ class SettingsActivity : AppCompatActivity() {
     val btnRedoSetup      = findViewById<MaterialButton>(R.id.btn_redo_setup_wizard)
     val btnClearCache     = findViewById<MaterialButton>(R.id.btn_clear_system_cache)
     val btnInitializeRetailHdd = findViewById<MaterialButton>(R.id.btn_initialize_retail_hdd)
+    btnImportDashboard   = findViewById(R.id.btn_import_dashboard)
     tvVulkanDriverName    = findViewById(R.id.tv_vulkan_driver_name)
     val btnVulkanBrowse   = findViewById<MaterialButton>(R.id.btn_vulkan_browse)
     val btnVulkanClear    = findViewById<MaterialButton>(R.id.btn_vulkan_clear)
@@ -248,6 +294,9 @@ class SettingsActivity : AppCompatActivity() {
 
     setupEepromEditor()
     refreshHddToolsPreview(btnInitializeRetailHdd)
+    btnImportDashboard.setOnClickListener {
+      showDashboardImportSourcePicker()
+    }
 
     fun persistSettings(): Pair<Int, Int> {
       val selectedDisplayMode = when (toggleDisplayMode.checkedButtonId) {
@@ -718,6 +767,493 @@ class SettingsActivity : AppCompatActivity() {
       hddFile.absolutePath,
     )
     button.isEnabled = !isInitializingHdd
+  }
+
+  private fun showDashboardImportSourcePicker() {
+    val hddFile = resolveHddFile()
+    if (hddFile == null) {
+      Toast.makeText(this, R.string.settings_hdd_status_missing, Toast.LENGTH_LONG).show()
+      return
+    }
+    if (isImportingDashboard) {
+      return
+    }
+
+    val labels = arrayOf(
+      getString(R.string.settings_dashboard_import_source_zip),
+      getString(R.string.settings_dashboard_import_source_folder),
+    )
+    MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_Xemu_RoundedDialog)
+      .setTitle(R.string.settings_dashboard_import_source_title)
+      .setItems(labels) { _, which ->
+        when (which) {
+          0 -> pickDashboardZip.launch(arrayOf("application/zip", "application/octet-stream"))
+          else -> pickDashboardFolder.launch(null)
+        }
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
+  }
+
+  private fun prepareDashboardImportFromZip(uri: Uri) {
+    val hddFile = resolveHddFile()
+    if (hddFile == null) {
+      Toast.makeText(this, R.string.settings_hdd_status_missing, Toast.LENGTH_LONG).show()
+      return
+    }
+
+    startDashboardImportPreparation(hddFile) { workingDir ->
+      extractDashboardZipToDirectory(uri, workingDir)
+    }
+  }
+
+  private fun prepareDashboardImportFromFolder(uri: Uri) {
+    val hddFile = resolveHddFile()
+    if (hddFile == null) {
+      Toast.makeText(this, R.string.settings_hdd_status_missing, Toast.LENGTH_LONG).show()
+      return
+    }
+
+    startDashboardImportPreparation(hddFile) { workingDir ->
+      copyDashboardTreeToDirectory(uri, workingDir)
+    }
+  }
+
+  private fun startDashboardImportPreparation(
+    hddFile: File,
+    prepareSource: (File) -> File,
+  ) {
+    if (isImportingDashboard) {
+      return
+    }
+
+    isImportingDashboard = true
+    btnImportDashboard.isEnabled = false
+    Toast.makeText(this, R.string.settings_dashboard_import_preparing, Toast.LENGTH_SHORT).show()
+
+    Thread {
+      var workingDir: File? = null
+      val result = runCatching {
+        workingDir = createDashboardWorkingDirectory()
+        val preparedRoot = prepareSource(workingDir!!)
+        val sourceRoot = normalizeDashboardSourceRoot(preparedRoot)
+        if (!dashboardSourceHasFiles(sourceRoot)) {
+          throw IOException(getString(R.string.settings_dashboard_import_empty))
+        }
+        val importLayoutRoot = buildDashboardImportLayout(sourceRoot, workingDir!!)
+        val bootPreparation = prepareDashboardBootFiles(importLayoutRoot)
+
+        DashboardImportPlan(
+          hddFile = hddFile,
+          workingDir = workingDir!!,
+          sourceDir = importLayoutRoot,
+          backupDir = createDashboardBackupDirectory(),
+          summary = describeDashboardSource(importLayoutRoot),
+          bootNote = bootPreparation.note,
+          bootAliasCreated = bootPreparation.aliasCreated,
+          retailBootReady = bootPreparation.retailBootReady,
+        )
+      }
+
+      runOnUiThread {
+        result.onSuccess { plan ->
+          showDashboardImportConfirmation(plan)
+        }.onFailure { error ->
+          workingDir?.deleteRecursively()
+          isImportingDashboard = false
+          btnImportDashboard.isEnabled = true
+          Toast.makeText(
+            this,
+            getString(
+              R.string.settings_dashboard_import_failed,
+              error.message ?: getString(R.string.settings_dashboard_import_empty),
+            ),
+            Toast.LENGTH_LONG,
+          ).show()
+        }
+      }
+    }.start()
+  }
+
+  private fun showDashboardImportConfirmation(plan: DashboardImportPlan) {
+    MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_Xemu_RoundedDialog)
+      .setTitle(R.string.settings_dashboard_import_title)
+      .setMessage(
+        buildString {
+          append(
+            getString(
+              R.string.settings_dashboard_import_message,
+              plan.summary,
+              plan.backupDir.absolutePath,
+            )
+          )
+          if (!plan.bootNote.isNullOrBlank()) {
+            append("\n\n")
+            append(plan.bootNote)
+          }
+        }
+      )
+      .setPositiveButton(R.string.settings_dashboard_import_action) { _, _ ->
+        importDashboard(plan)
+      }
+      .setNegativeButton(android.R.string.cancel) { _, _ ->
+        plan.workingDir.deleteRecursively()
+        isImportingDashboard = false
+        btnImportDashboard.isEnabled = true
+      }
+      .setOnCancelListener {
+        plan.workingDir.deleteRecursively()
+        isImportingDashboard = false
+        btnImportDashboard.isEnabled = true
+      }
+      .show()
+  }
+
+  private fun importDashboard(plan: DashboardImportPlan) {
+    Toast.makeText(this, R.string.settings_dashboard_import_working, Toast.LENGTH_SHORT).show()
+
+    Thread {
+      val result = runCatching {
+        XboxDashboardImporter.importDashboard(
+          hddFile = plan.hddFile,
+          sourceRoot = plan.sourceDir,
+          backupRoot = plan.backupDir,
+        )
+      }
+
+      runOnUiThread {
+        plan.workingDir.deleteRecursively()
+        isImportingDashboard = false
+        btnImportDashboard.isEnabled = true
+        result.onSuccess {
+          val messageRes = when {
+            plan.bootAliasCreated -> R.string.settings_dashboard_import_success_with_alias
+            !plan.retailBootReady -> R.string.settings_dashboard_import_success_without_retail_boot
+            else -> R.string.settings_dashboard_import_success
+          }
+          Toast.makeText(this, getString(messageRes, plan.backupDir.absolutePath), Toast.LENGTH_LONG).show()
+        }.onFailure { error ->
+          Toast.makeText(
+            this,
+            getString(
+              R.string.settings_dashboard_import_failed,
+              error.message ?: plan.hddFile.absolutePath,
+            ),
+            Toast.LENGTH_LONG,
+          ).show()
+        }
+      }
+    }.start()
+  }
+
+  private fun createDashboardWorkingDirectory(): File {
+    val dir = File(cacheDir, "dashboard-import-${System.currentTimeMillis()}")
+    if (!dir.mkdirs()) {
+      throw IOException("Failed to prepare a temporary dashboard import folder.")
+    }
+    return dir
+  }
+
+  private fun createDashboardBackupDirectory(): File {
+    val base = getExternalFilesDir(null) ?: filesDir
+    val root = File(File(base, "x1box"), "dashboard-backups")
+    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+    val dir = File(root, "dashboard-$stamp")
+    if (!dir.mkdirs()) {
+      throw IOException("Failed to prepare the dashboard backup folder.")
+    }
+    return dir
+  }
+
+  private fun extractDashboardZipToDirectory(uri: Uri, targetDir: File): File {
+    val canonicalRoot = targetDir.canonicalFile
+    contentResolver.openInputStream(uri)?.use { rawInput ->
+      ZipInputStream(BufferedInputStream(rawInput)).use { zip ->
+        while (true) {
+          val entry = zip.nextEntry ?: break
+          if (entry.name.isBlank()) {
+            continue
+          }
+          val outFile = File(targetDir, entry.name).canonicalFile
+          val rootPath = canonicalRoot.path + File.separator
+          if (outFile.path != canonicalRoot.path && !outFile.path.startsWith(rootPath)) {
+            throw IOException("The selected ZIP contains an invalid path.")
+          }
+          if (entry.isDirectory) {
+            if (!outFile.exists() && !outFile.mkdirs()) {
+              throw IOException("Failed to create ${outFile.name} from the ZIP.")
+            }
+            continue
+          }
+
+          outFile.parentFile?.let { parent ->
+            if (!parent.exists() && !parent.mkdirs()) {
+              throw IOException("Failed to create ${parent.name} from the ZIP.")
+            }
+          }
+          FileOutputStream(outFile).use { output ->
+            zip.copyTo(output)
+          }
+          zip.closeEntry()
+        }
+      }
+    } ?: throw IOException("Failed to open the selected dashboard ZIP.")
+
+    return targetDir
+  }
+
+  private fun copyDashboardTreeToDirectory(uri: Uri, targetDir: File): File {
+    val root = DocumentFile.fromTreeUri(this, uri)
+      ?: throw IOException("Failed to open the selected dashboard folder.")
+    copyDocumentFileRecursively(root, targetDir)
+    return targetDir
+  }
+
+  private fun copyDocumentFileRecursively(source: DocumentFile, target: File) {
+    if (source.isDirectory) {
+      val children = source.listFiles()
+      for (child in children) {
+        val name = child.name ?: continue
+        val childTarget = File(target, name)
+        if (child.isDirectory) {
+          if (!childTarget.exists() && !childTarget.mkdirs()) {
+            throw IOException("Failed to create ${childTarget.name}.")
+          }
+          copyDocumentFileRecursively(child, childTarget)
+        } else if (child.isFile) {
+          childTarget.parentFile?.mkdirs()
+          contentResolver.openInputStream(child.uri)?.use { input ->
+            FileOutputStream(childTarget).use { output ->
+              input.copyTo(output)
+            }
+          } ?: throw IOException("Failed to copy ${child.name}.")
+        }
+      }
+      return
+    }
+
+    if (source.isFile) {
+      contentResolver.openInputStream(source.uri)?.use { input ->
+        FileOutputStream(target).use { output ->
+          input.copyTo(output)
+        }
+      } ?: throw IOException("Failed to copy ${source.name}.")
+    }
+  }
+
+  private fun normalizeDashboardSourceRoot(root: File): File {
+    var current = root
+
+    while (true) {
+      val children = current.listFiles()
+        ?.filterNot { shouldSkipDashboardSourceEntry(it.name) }
+        .orEmpty()
+      if (children.size != 1 || !children.first().isDirectory) {
+        return current
+      }
+      current = children.first()
+    }
+  }
+
+  private fun buildDashboardImportLayout(sourceRoot: File, workingDir: File): File {
+    val entries = sourceRoot.listFiles()
+      ?.filterNot { shouldSkipDashboardSourceEntry(it.name) }
+      .orEmpty()
+    val layoutRoot = File(workingDir, "dashboard-layout")
+    if (layoutRoot.exists()) {
+      layoutRoot.deleteRecursively()
+    }
+    if (!layoutRoot.mkdirs()) {
+      throw IOException("Failed to prepare the dashboard import layout.")
+    }
+
+    val sourceC = entries.firstOrNull { it.isDirectory && it.name.equals("C", ignoreCase = true) }
+    val sourceE = entries.firstOrNull { it.isDirectory && it.name.equals("E", ignoreCase = true) }
+    val rootEntriesForC = entries.filterNot { entry ->
+      entry.isDirectory && (entry.name.equals("C", ignoreCase = true) || entry.name.equals("E", ignoreCase = true))
+    }
+
+    sourceC?.let { copyLocalDirectoryContents(it, File(layoutRoot, "C")) }
+    if (rootEntriesForC.isNotEmpty()) {
+      val targetC = File(layoutRoot, "C")
+      for (entry in rootEntriesForC) {
+        copyLocalEntry(entry, File(targetC, entry.name))
+      }
+    }
+
+    sourceE?.let { copyLocalDirectoryContents(it, File(layoutRoot, "E")) }
+
+    return layoutRoot
+  }
+
+  private fun copyLocalDirectoryContents(sourceDir: File, targetDir: File) {
+    val children = sourceDir.listFiles().orEmpty()
+    if (!targetDir.exists() && !targetDir.mkdirs()) {
+      throw IOException("Failed to create ${targetDir.name}.")
+    }
+    for (child in children) {
+      if (shouldSkipDashboardSourceEntry(child.name)) {
+        continue
+      }
+      copyLocalEntry(child, File(targetDir, child.name))
+    }
+  }
+
+  private fun copyLocalEntry(source: File, target: File) {
+    if (source.isDirectory) {
+      if (!target.exists() && !target.mkdirs()) {
+        throw IOException("Failed to create ${target.name}.")
+      }
+      for (child in source.listFiles().orEmpty()) {
+        if (shouldSkipDashboardSourceEntry(child.name)) {
+          continue
+        }
+        copyLocalEntry(child, File(target, child.name))
+      }
+      return
+    }
+
+    target.parentFile?.let { parent ->
+      if (!parent.exists() && !parent.mkdirs()) {
+        throw IOException("Failed to create ${parent.name}.")
+      }
+    }
+    source.copyTo(target, overwrite = true)
+  }
+
+  private fun prepareDashboardBootFiles(layoutRoot: File): DashboardBootPreparation {
+    val cDir = File(layoutRoot, "C")
+    if (!cDir.isDirectory || !cDir.exists()) {
+      return DashboardBootPreparation(
+        note = getString(R.string.settings_dashboard_import_boot_missing_note),
+        aliasCreated = false,
+        retailBootReady = false,
+      )
+    }
+
+    val topLevelFiles = cDir.listFiles()
+      ?.filter { it.isFile }
+      .orEmpty()
+    val xboxdash = topLevelFiles.firstOrNull { it.name.equals("xboxdash.xbe", ignoreCase = true) }
+    if (xboxdash != null) {
+      return DashboardBootPreparation(
+        note = null,
+        aliasCreated = false,
+        retailBootReady = true,
+      )
+    }
+
+    val candidate = findDashboardBootCandidate(cDir)
+
+    if (candidate != null) {
+      val aliasFile = File(cDir, "xboxdash.xbe")
+      candidate.copyTo(aliasFile, overwrite = true)
+      val relativePath = candidate.relativeTo(cDir).invariantSeparatorsPath
+      return DashboardBootPreparation(
+        note = getString(R.string.settings_dashboard_import_boot_alias_note, relativePath),
+        aliasCreated = true,
+        retailBootReady = true,
+      )
+    }
+
+    return DashboardBootPreparation(
+      note = getString(R.string.settings_dashboard_import_boot_missing_note),
+      aliasCreated = false,
+      retailBootReady = false,
+    )
+  }
+
+  private fun findDashboardBootCandidate(cDir: File): File? {
+    var bestFile: File? = null
+    var bestScore = Int.MIN_VALUE
+
+    cDir.walkTopDown().forEach { file ->
+      if (!file.isFile || !file.extension.equals("xbe", ignoreCase = true)) {
+        return@forEach
+      }
+
+      val score = scoreDashboardBootCandidate(cDir, file)
+      if (score > bestScore) {
+        bestScore = score
+        bestFile = file
+      }
+    }
+
+    return bestFile
+  }
+
+  private fun scoreDashboardBootCandidate(cDir: File, candidate: File): Int {
+    val relativePath = candidate.relativeTo(cDir).invariantSeparatorsPath.lowercase(Locale.US)
+    val fileName = candidate.name.lowercase(Locale.US)
+    val baseName = candidate.nameWithoutExtension.lowercase(Locale.US)
+    val depth = relativePath.count { it == '/' }
+    var score = 0
+
+    score += when (fileName) {
+      "xboxdash.xbe" -> 12_000
+      "default.xbe" -> 10_000
+      "evoxdash.xbe" -> 9_500
+      "avalaunch.xbe" -> 9_400
+      "unleashx.xbe" -> 9_300
+      "xbmc.xbe" -> 9_200
+      "nexgen.xbe" -> 9_100
+      else -> 0
+    }
+
+    if (baseName.contains("dash")) {
+      score += 800
+    }
+    if (relativePath.contains("/dashboard/") || relativePath.contains("/dash/")) {
+      score += 500
+    }
+    if (relativePath.startsWith("dashboard/") || relativePath.startsWith("dash/")) {
+      score += 400
+    }
+    if (relativePath.contains("/apps/") || relativePath.contains("/games/")) {
+      score -= 1_000
+    }
+    if (baseName.contains("installer") || baseName.contains("uninstall") || baseName.contains("config")) {
+      score -= 2_000
+    }
+
+    score += 300 - (depth * 40)
+    return score
+  }
+
+  private fun dashboardSourceHasFiles(root: File): Boolean {
+    return root.walkTopDown().any { file ->
+      file.isFile && !shouldSkipDashboardSourceEntry(file.name)
+    }
+  }
+
+  private fun describeDashboardSource(root: File): String {
+    val sourceC = File(root, "C")
+    val sourceE = File(root, "E")
+    val hasC = sourceC.isDirectory && sourceC.walkTopDown().any { it.isFile }
+    val hasE = sourceE.isDirectory && sourceE.walkTopDown().any { it.isFile }
+
+    return when {
+      hasC && hasE -> getString(R.string.settings_dashboard_import_summary_c_e)
+      hasE -> getString(R.string.settings_dashboard_import_summary_e)
+      else -> getString(R.string.settings_dashboard_import_summary_c)
+    }
+  }
+
+  private fun shouldSkipDashboardSourceEntry(name: String): Boolean {
+    return name == ".DS_Store" || name == "__MACOSX"
+  }
+
+  private fun isZipSelection(uri: Uri): Boolean {
+    val name = getFileName(uri)?.lowercase(Locale.US) ?: return false
+    return name.endsWith(".zip")
+  }
+
+  private fun persistUriPermission(uri: Uri) {
+    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    try {
+      contentResolver.takePersistableUriPermission(uri, flags)
+    } catch (_: SecurityException) {
+    }
   }
 
   private fun hddFormatLabelRes(format: XboxHddFormatter.ImageFormat): Int {
