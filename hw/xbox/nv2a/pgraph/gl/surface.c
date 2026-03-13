@@ -31,6 +31,57 @@
 #endif
 
 #ifdef __ANDROID__
+static bool android_log_and_drain_gl_errors(const char *ctx)
+{
+    GLenum err;
+    bool had_error = false;
+
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        __android_log_print(ANDROID_LOG_WARN, "xemu-android",
+                            "GL error 0x%X at %s", err, ctx);
+        had_error = true;
+    }
+
+    return had_error;
+}
+
+static bool android_log_surface_download_errors(const char *ctx,
+                                                const SurfaceBinding *surface)
+{
+    bool had_error = android_log_and_drain_gl_errors(ctx);
+
+    if (!had_error || !surface) {
+        return had_error;
+    }
+
+    __android_log_print(ANDROID_LOG_WARN, "xemu-android",
+                        "  surface download: kind=%s attachment=0x%X format=0x%X "
+                        "type=0x%X bpp=%u size=%ux%u pitch=%u addr=0x%llX",
+                        surface->color ? "color" : "zeta",
+                        surface->fmt.gl_attachment,
+                        surface->fmt.gl_format,
+                        surface->fmt.gl_type,
+                        surface->fmt.bytes_per_pixel,
+                        surface->width,
+                        surface->height,
+                        surface->pitch,
+                        (unsigned long long)surface->vram_addr);
+
+    return had_error;
+}
+
+static bool android_drain_gl_errors_silent(void)
+{
+    GLenum err;
+    bool had_error = false;
+
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        had_error = true;
+    }
+
+    return had_error;
+}
+
 static void android_sanitize_surface_format(PGRAPHGLState *r,
                                             SurfaceFormatInfo *fmt)
 {
@@ -479,11 +530,37 @@ static void init_render_to_texture(PGRAPHState *pg)
         "    vec2 texCoord = gl_FragCoord.xy / texSize;\n"
         "    out_Color.rgba = texture(tex, texCoord);\n"
         "}\n";
+#ifdef __ANDROID__
+    const char *depth_fs =
+        "#version 300 es\n"
+        "precision highp float;\n"
+        "precision highp int;\n"
+        "precision highp sampler2D;\n"
+        "uniform sampler2D tex;\n"
+        "uniform float depth_scale;\n"
+        "layout(location = 0) out vec4 out_Color;\n"
+        "void main()\n"
+        "{\n"
+        "    float depth = texelFetch(tex, ivec2(gl_FragCoord.xy), 0).r;\n"
+        "    uint packed = uint(clamp(depth * depth_scale + 0.5, 0.0, depth_scale));\n"
+        "    out_Color = vec4(float(packed & 0xFFu) / 255.0,\n"
+        "                     float((packed >> 8) & 0xFFu) / 255.0,\n"
+        "                     float((packed >> 16) & 0xFFu) / 255.0,\n"
+        "                     1.0);\n"
+        "}\n";
+#endif
 
     r->s2t_rndr.prog = pgraph_gl_compile_shader(vs, fs);
     r->s2t_rndr.tex_loc = glGetUniformLocation(r->s2t_rndr.prog, "tex");
     r->s2t_rndr.surface_size_loc = glGetUniformLocation(r->s2t_rndr.prog,
                                                     "surface_size");
+#ifdef __ANDROID__
+    r->s2t_rndr.depth_prog = pgraph_gl_compile_shader(vs, depth_fs);
+    r->s2t_rndr.depth_tex_loc =
+        glGetUniformLocation(r->s2t_rndr.depth_prog, "tex");
+    r->s2t_rndr.depth_scale_loc =
+        glGetUniformLocation(r->s2t_rndr.depth_prog, "depth_scale");
+#endif
 
     glGenVertexArrays(1, &r->s2t_rndr.vao);
     glBindVertexArray(r->s2t_rndr.vao);
@@ -499,6 +576,10 @@ static void finalize_render_to_texture(PGRAPHState *pg)
 
     glDeleteProgram(r->s2t_rndr.prog);
     r->s2t_rndr.prog = 0;
+#ifdef __ANDROID__
+    glDeleteProgram(r->s2t_rndr.depth_prog);
+    r->s2t_rndr.depth_prog = 0;
+#endif
 
     glDeleteVertexArrays(1, &r->s2t_rndr.vao);
     r->s2t_rndr.vao = 0;
@@ -610,7 +691,7 @@ static bool render_surface_to(NV2AState *d, SurfaceBinding *surface,
 #ifndef __ANDROID__
     assert(glGetError() == GL_NO_ERROR);
 #else
-    if (glGetError() != GL_NO_ERROR) {
+    if (android_log_and_drain_gl_errors("render_surface_to: fbo setup")) {
         glBindFramebuffer(GL_FRAMEBUFFER, r->gl_framebuffer);
         return false;
     }
@@ -630,10 +711,12 @@ static bool render_surface_to(NV2AState *d, SurfaceBinding *surface,
     glBindVertexArray(r->s2t_rndr.vao);
     glBindBuffer(GL_ARRAY_BUFFER, r->s2t_rndr.vbo);
     glUseProgram(r->s2t_rndr.prog);
-    glProgramUniform1i(r->s2t_rndr.prog, r->s2t_rndr.tex_loc,
-                       texture_unit);
-    glProgramUniform2f(r->s2t_rndr.prog,
-                       r->s2t_rndr.surface_size_loc, width, height);
+    if (r->s2t_rndr.tex_loc >= 0) {
+        glUniform1i(r->s2t_rndr.tex_loc, texture_unit);
+    }
+    if (r->s2t_rndr.surface_size_loc >= 0) {
+        glUniform2f(r->s2t_rndr.surface_size_loc, width, height);
+    }
 
     glViewport(0, 0, width, height);
     glColorMask(true, true, true, true);
@@ -649,6 +732,18 @@ static bool render_surface_to(NV2AState *d, SurfaceBinding *surface,
     glClearColor(0.0f, 0.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glDrawArrays(GL_TRIANGLES, 0, 3);
+
+#ifdef __ANDROID__
+    if (android_log_and_drain_gl_errors("render_surface_to: draw")) {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gl_target,
+                               0, 0);
+        glBindFramebuffer(GL_FRAMEBUFFER, r->gl_framebuffer);
+        glBindVertexArray(r->gl_vertex_array);
+        glBindTexture(gl_target, gl_texture);
+        glUseProgram(r->shader_binding ? r->shader_binding->gl_program : 0);
+        return false;
+    }
+#endif
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, gl_target, 0,
                            0);
@@ -1085,6 +1180,16 @@ static void bind_current_surface(NV2AState *d)
     PGRAPHState *pg = &d->pgraph;
     PGRAPHGLState *r = pg->gl_renderer_state;
 
+    /* Clear any temporary download/render attachments before restoring
+     * the active render targets.
+     */
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           0, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                           0, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                           GL_TEXTURE_2D, 0, 0);
+
     if (r->color_binding) {
         glFramebufferTexture2D(GL_FRAMEBUFFER, r->color_binding->fmt.gl_attachment,
                                GL_TEXTURE_2D, r->color_binding->gl_buffer, 0);
@@ -1170,12 +1275,351 @@ static void surface_copy_shrink_row(uint8_t *out, uint8_t *in,
     }
 }
 
+#ifdef __ANDROID__
+static bool android_surface_download_depth16_to_guest(NV2AState *d,
+                                                      SurfaceBinding *surface,
+                                                      bool swizzle, bool flip,
+                                                      bool downscale,
+                                                      uint8_t *pixels)
+{
+    PGRAPHState *pg = &d->pgraph;
+    PGRAPHGLState *r = pg->gl_renderer_state;
+    const unsigned int factor = downscale ? pg->surface_scale_factor : 1;
+    const unsigned int read_width = surface->width * factor;
+    const unsigned int read_height = surface->height * factor;
+    const unsigned int rgba_stride = read_width * 4;
+    GLuint pack_texture = 0;
+    uint8_t *rgba_pixels = NULL;
+    uint8_t *rgba_linear = NULL;
+    uint8_t *linear_guest = pixels;
+    uint8_t *swizzle_buf = NULL;
+    bool ok = false;
+
+    if (surface->color || surface->fmt.gl_attachment != GL_DEPTH_ATTACHMENT ||
+        surface->fmt.gl_format != GL_DEPTH_COMPONENT ||
+        surface->fmt.gl_type != GL_UNSIGNED_SHORT ||
+        r->s2t_rndr.depth_prog == 0) {
+        return false;
+    }
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, surface->gl_buffer);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glGenTextures(1, &pack_texture);
+    glBindTexture(GL_TEXTURE_2D, pack_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, read_width, read_height, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, r->s2t_rndr.fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           pack_texture, 0);
+    {
+        GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            goto cleanup;
+        }
+        glDrawBuffers(1, draw_buffers);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+    }
+
+    if (android_log_surface_download_errors(
+            "surface_download_depth16: fbo setup", surface)) {
+        goto cleanup;
+    }
+
+    glBindVertexArray(r->s2t_rndr.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, r->s2t_rndr.vbo);
+    glUseProgram(r->s2t_rndr.depth_prog);
+    if ((GLint)r->s2t_rndr.depth_tex_loc >= 0) {
+        glUniform1i(r->s2t_rndr.depth_tex_loc, 0);
+    }
+    if (r->s2t_rndr.depth_scale_loc >= 0) {
+        glUniform1f(r->s2t_rndr.depth_scale_loc, 65535.0f);
+    }
+    glViewport(0, 0, read_width, read_height);
+    glColorMask(true, true, true, true);
+    glDisable(GL_DITHER);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    if (android_log_surface_download_errors(
+            "surface_download_depth16: pack draw", surface)) {
+        goto cleanup;
+    }
+
+    rgba_pixels = g_malloc(read_height * rgba_stride);
+    glo_readpixels(GL_RGBA, GL_UNSIGNED_BYTE, 4, rgba_stride, read_width,
+                   read_height, flip, rgba_pixels);
+
+    if (android_log_surface_download_errors(
+            "surface_download_depth16: pack read", surface)) {
+        goto cleanup;
+    }
+
+    rgba_linear = rgba_pixels;
+    if (downscale) {
+        rgba_linear = g_malloc(surface->width * surface->height * 4);
+        for (unsigned int y = 0; y < surface->height; y++) {
+            surface_copy_shrink_row(rgba_linear + y * surface->width * 4,
+                                    rgba_pixels + y * rgba_stride * factor,
+                                    surface->width, 4, factor);
+        }
+    }
+
+    if (swizzle) {
+        swizzle_buf = g_malloc(surface->size);
+        linear_guest = swizzle_buf;
+    }
+
+    for (unsigned int y = 0; y < surface->height; y++) {
+        const uint8_t *src_row = rgba_linear + y * surface->width * 4;
+        uint8_t *dst_row = linear_guest + y * surface->pitch;
+
+        for (unsigned int x = 0; x < surface->width; x++) {
+            const uint8_t *src = src_row + x * 4;
+            stw_le_p(dst_row + x * 2, src[0] | (src[1] << 8));
+        }
+    }
+
+    if (swizzle) {
+        swizzle_rect(swizzle_buf, surface->width, surface->height, pixels,
+                     surface->pitch, surface->fmt.bytes_per_pixel);
+    }
+
+    ok = true;
+
+cleanup:
+    if (swizzle_buf) {
+        g_free(swizzle_buf);
+    }
+    if (rgba_linear && rgba_linear != rgba_pixels) {
+        g_free(rgba_linear);
+    }
+    if (rgba_pixels) {
+        g_free(rgba_pixels);
+    }
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           0, 0);
+    if (pack_texture) {
+        glDeleteTextures(1, &pack_texture);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, r->gl_framebuffer);
+    glBindVertexArray(r->gl_vertex_array);
+    glUseProgram(r->shader_binding ? r->shader_binding->gl_program : 0);
+
+    return ok;
+}
+
+static bool android_surface_download_z24s8_to_guest(NV2AState *d,
+                                                    SurfaceBinding *surface,
+                                                    bool swizzle, bool flip,
+                                                    bool downscale,
+                                                    uint8_t *pixels)
+{
+    PGRAPHState *pg = &d->pgraph;
+    PGRAPHGLState *r = pg->gl_renderer_state;
+    const unsigned int scale = pg->surface_scale_factor;
+    const unsigned int read_width = surface->width * scale;
+    const unsigned int read_height = surface->height * scale;
+    const unsigned int output_width = downscale ? surface->width : read_width;
+    const unsigned int output_height = downscale ? surface->height : read_height;
+    const unsigned int output_pitch = downscale ? surface->pitch
+                                                : surface->pitch * scale;
+    GLuint pack_texture = 0;
+    uint8_t *depth_pixels = NULL;
+    uint8_t *stencil_pixels = NULL;
+    uint8_t *linear_guest = pixels;
+    uint8_t *swizzle_buf = NULL;
+    GLint prev_read_buffer = GL_NONE;
+    bool ok = false;
+    static bool warned_stencil_readback_unsupported = false;
+
+    if (surface->color ||
+        surface->fmt.gl_attachment != GL_DEPTH_STENCIL_ATTACHMENT ||
+        surface->fmt.gl_format != GL_DEPTH_STENCIL ||
+        surface->fmt.gl_type != GL_UNSIGNED_INT_24_8) {
+        return false;
+    }
+
+    glGetIntegerv(GL_READ_BUFFER, &prev_read_buffer);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, surface->gl_buffer);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glGenTextures(1, &pack_texture);
+    glBindTexture(GL_TEXTURE_2D, pack_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, read_width, read_height, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, r->s2t_rndr.fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           pack_texture, 0);
+    {
+        GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            goto cleanup;
+        }
+        glDrawBuffers(1, draw_buffers);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+    }
+
+    if (android_log_surface_download_errors(
+            "surface_download_z24s8: pack_fbo_setup", surface)) {
+        goto cleanup;
+    }
+
+    glBindVertexArray(r->s2t_rndr.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, r->s2t_rndr.vbo);
+    glUseProgram(r->s2t_rndr.depth_prog);
+    if ((GLint)r->s2t_rndr.depth_tex_loc >= 0) {
+        glUniform1i(r->s2t_rndr.depth_tex_loc, 0);
+    }
+    if (r->s2t_rndr.depth_scale_loc >= 0) {
+        glUniform1f(r->s2t_rndr.depth_scale_loc, 16777215.0f);
+    }
+    glViewport(0, 0, read_width, read_height);
+    glColorMask(true, true, true, true);
+    glDisable(GL_DITHER);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    if (android_log_surface_download_errors(
+            "surface_download_z24s8: pack_draw", surface)) {
+        goto cleanup;
+    }
+
+    depth_pixels = g_malloc(read_width * read_height * 4);
+    glo_readpixels(GL_RGBA, GL_UNSIGNED_BYTE, 4, read_width * 4, read_width,
+                   read_height, flip, depth_pixels);
+    if (android_log_surface_download_errors(
+            "surface_download_z24s8: post-read-depth-pack", surface)) {
+        goto cleanup;
+    }
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           0, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, r->gl_framebuffer);
+    glBindVertexArray(r->gl_vertex_array);
+    glUseProgram(r->shader_binding ? r->shader_binding->gl_program : 0);
+
+    glReadBuffer(GL_NONE);
+    if (android_log_surface_download_errors(
+            "surface_download_z24s8: pre-read-stencil", surface)) {
+        goto cleanup;
+    }
+
+    stencil_pixels = g_malloc0(read_width * read_height);
+    glo_readpixels(GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, 1, read_width,
+                   read_width, read_height, flip,
+                   stencil_pixels);
+    if (android_drain_gl_errors_silent()) {
+        if (!warned_stencil_readback_unsupported) {
+            warned_stencil_readback_unsupported = true;
+            __android_log_print(
+                ANDROID_LOG_WARN, "xemu-android",
+                "surface_download_z24s8: stencil readback unsupported on this "
+                "GLES driver, substituting zero stencil");
+        }
+    }
+
+    if (swizzle) {
+        swizzle_buf = g_malloc(output_pitch * output_height);
+        linear_guest = swizzle_buf;
+    }
+
+    for (unsigned int y = 0; y < output_height; y++) {
+        uint8_t *dst_row = linear_guest + y * output_pitch;
+        const unsigned int src_y = downscale ? y * scale : y;
+
+        for (unsigned int x = 0; x < output_width; x++) {
+            const unsigned int src_x = downscale ? x * scale : x;
+            const unsigned int src_idx = src_y * read_width + src_x;
+            const uint8_t *src = depth_pixels + src_idx * 4;
+            uint32_t depth24 = src[0] | (src[1] << 8) | (src[2] << 16);
+
+            stl_le_p((uint32_t *)(dst_row + x * 4),
+                     (depth24 << 8) | stencil_pixels[src_idx]);
+        }
+    }
+
+    if (swizzle) {
+        swizzle_rect(swizzle_buf, output_width, output_height, pixels,
+                     output_pitch, surface->fmt.bytes_per_pixel);
+    }
+
+    ok = true;
+
+cleanup:
+    if (swizzle_buf) {
+        g_free(swizzle_buf);
+    }
+    if (stencil_pixels) {
+        g_free(stencil_pixels);
+    }
+    if (depth_pixels) {
+        g_free(depth_pixels);
+    }
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           0, 0);
+    if (pack_texture) {
+        glDeleteTextures(1, &pack_texture);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, r->gl_framebuffer);
+    glBindVertexArray(r->gl_vertex_array);
+    glUseProgram(r->shader_binding ? r->shader_binding->gl_program : 0);
+
+    glReadBuffer((GLenum)prev_read_buffer);
+    android_log_surface_download_errors(
+        "surface_download_z24s8: cleanup_restore_read_buffer", surface);
+
+    return ok;
+}
+#endif
+
 static void surface_download_to_buffer(NV2AState *d, SurfaceBinding *surface,
                                        bool swizzle, bool flip, bool downscale,
                                        uint8_t *pixels)
 {
     PGRAPHState *pg = &d->pgraph;
     bool ok = true;
+#ifdef __ANDROID__
+    GLint prev_read_buffer = GL_COLOR_ATTACHMENT0;
+    bool restore_read_buffer = false;
+#endif
 
     swizzle &= surface->swizzle;
     downscale &= (pg->surface_scale_factor != 1);
@@ -1232,8 +1676,24 @@ static void surface_download_to_buffer(NV2AState *d, SurfaceBinding *surface,
         goto cleanup;
     }
 
+#ifdef __ANDROID__
+    if (android_surface_download_depth16_to_guest(d, surface, swizzle, flip,
+                                                  downscale, pixels)) {
+        goto cleanup;
+    }
+    if (android_surface_download_z24s8_to_guest(d, surface, swizzle, flip,
+                                                downscale, pixels)) {
+        goto cleanup;
+    }
+#endif
+
     /* Read surface into memory */
 #ifdef __ANDROID__
+    glGetIntegerv(GL_READ_BUFFER, &prev_read_buffer);
+    glReadBuffer(surface->color ? surface->fmt.gl_attachment : GL_NONE);
+    restore_read_buffer = true;
+    android_log_surface_download_errors("surface_download_to_buffer: pre-read",
+                                        surface);
     if (android_surface_uses_rgba8_transfer(surface)) {
         const unsigned int factor = downscale ? pg->surface_scale_factor : 1;
         const unsigned int read_width = surface->width * factor;
@@ -1245,6 +1705,8 @@ static void surface_download_to_buffer(NV2AState *d, SurfaceBinding *surface,
 
         glo_readpixels(GL_RGBA, GL_UNSIGNED_BYTE, 4, rgba_stride,
                        read_width, read_height, flip, rgba_pixels);
+        android_log_surface_download_errors(
+            "surface_download_to_buffer: post-read_rgba8", surface);
 
         if (downscale) {
             rgba_linear = g_malloc(surface->width * surface->height * 4);
@@ -1301,6 +1763,8 @@ static void surface_download_to_buffer(NV2AState *d, SurfaceBinding *surface,
         pg->surface_scale_factor * surface->pitch,
         pg->surface_scale_factor * surface->width,
         pg->surface_scale_factor * surface->height, flip, gl_read_buf);
+    android_log_surface_download_errors("surface_download_to_buffer: post-read",
+                                        surface);
 
     /* FIXME: Replace this with a hw accelerated version */
     if (downscale) {
@@ -1324,9 +1788,24 @@ static void surface_download_to_buffer(NV2AState *d, SurfaceBinding *surface,
 
     /* Re-bind original framebuffer target */
 cleanup:
-    glFramebufferTexture2D(GL_FRAMEBUFFER, surface->fmt.gl_attachment,
-                           GL_TEXTURE_2D, 0, 0);
     bind_current_surface(d);
+#ifdef __ANDROID__
+    android_log_surface_download_errors(
+        "surface_download_to_buffer: cleanup_rebind_surface", surface);
+#endif
+#ifdef __ANDROID__
+    if (restore_read_buffer) {
+        GLenum read_buffer = (GLenum)prev_read_buffer;
+        if (read_buffer != GL_NONE &&
+            !d->pgraph.gl_renderer_state->color_binding) {
+            read_buffer = GL_NONE;
+        }
+        glReadBuffer(read_buffer);
+        android_log_surface_download_errors(
+            "surface_download_to_buffer: cleanup_restore_read_buffer",
+            surface);
+    }
+#endif
 }
 
 static void surface_download(NV2AState *d, SurfaceBinding *surface, bool force)

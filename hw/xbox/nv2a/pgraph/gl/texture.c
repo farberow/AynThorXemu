@@ -28,6 +28,43 @@
 #include "renderer.h"
 
 #ifdef __ANDROID__
+#include <android/log.h>
+
+static void android_log_gl_errors(const char *ctx)
+{
+    GLenum err;
+
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        __android_log_print(ANDROID_LOG_WARN, "xemu-android",
+                            "GL error 0x%X at %s", err, ctx);
+    }
+}
+
+static void android_log_texture_stage_errors(int unit, const char *stage,
+                                             const TextureShape *shape,
+                                             GLenum gl_target)
+{
+    GLenum err;
+
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        if (shape) {
+            __android_log_print(
+                ANDROID_LOG_WARN, "xemu-android",
+                "GL error 0x%X at pgraph_gl_bind_textures[%d]: %s "
+                "target=0x%X dim=%u fmt=0x%X levels=%u border=%d cubemap=%d",
+                err, unit, stage, gl_target, shape->dimensionality,
+                shape->color_format, shape->levels, shape->border,
+                shape->cubemap);
+        } else {
+            __android_log_print(
+                ANDROID_LOG_WARN, "xemu-android",
+                "GL error 0x%X at pgraph_gl_bind_textures[%d]: %s "
+                "target=0x%X",
+                err, unit, stage, gl_target);
+        }
+    }
+}
+
 static uint8_t android_expand_4_to_8(uint8_t value)
 {
     return (value << 4) | value;
@@ -515,6 +552,9 @@ void pgraph_gl_bind_textures(NV2AState *d)
         /* FIXME: What happens if texture is disabled but stage is active? */
 
         glActiveTexture(GL_TEXTURE0 + i);
+#ifdef __ANDROID__
+        android_log_texture_stage_errors(i, "after_active_texture", NULL, 0);
+#endif
         if (!enabled) {
             glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 #ifndef __ANDROID__
@@ -522,6 +562,9 @@ void pgraph_gl_bind_textures(NV2AState *d)
 #endif
             glBindTexture(GL_TEXTURE_2D, 0);
             glBindTexture(GL_TEXTURE_3D, 0);
+#ifdef __ANDROID__
+            android_log_texture_stage_errors(i, "disabled_unbind", NULL, 0);
+#endif
             continue;
         }
 
@@ -574,6 +617,11 @@ void pgraph_gl_bind_textures(NV2AState *d)
             if (reusable) {
                 glBindTexture(r->texture_binding[i]->gl_target,
                               r->texture_binding[i]->gl_texture);
+#ifdef __ANDROID__
+                android_log_texture_stage_errors(
+                    i, "reuse_bind_existing", &state,
+                    r->texture_binding[i]->gl_target);
+#endif
                 apply_texture_parameters(r,
                                          r->texture_binding[i],
                                          &kelvin_color_format_info_map[state.color_format],
@@ -583,6 +631,11 @@ void pgraph_gl_bind_textures(NV2AState *d)
                                          state.border,
                                          border_color,
                                          max_anisotropy);
+#ifdef __ANDROID__
+                android_log_texture_stage_errors(
+                    i, "reuse_apply_texture_parameters", &state,
+                    r->texture_binding[i]->gl_target);
+#endif
                 continue;
             }
         }
@@ -597,6 +650,10 @@ void pgraph_gl_bind_textures(NV2AState *d)
 
             if (surf_to_tex && surface->upload_pending) {
                 pgraph_gl_upload_surface_data(d, surface, false);
+#ifdef __ANDROID__
+                android_log_texture_stage_errors(i, "surface_upload_pending",
+                                                 &state, GL_TEXTURE_2D);
+#endif
             }
         }
 
@@ -611,6 +668,10 @@ void pgraph_gl_bind_textures(NV2AState *d)
                                      || texture_vram_offset >= surf_vram_end);
                 if (overlapping) {
                     pgraph_gl_surface_download_if_dirty(d, surface);
+#ifdef __ANDROID__
+                    android_log_texture_stage_errors(i, "download_overlap",
+                                                     &state, GL_TEXTURE_2D);
+#endif
                 }
             }
         }
@@ -667,10 +728,18 @@ void pgraph_gl_bind_textures(NV2AState *d)
             key_out->binding = generate_texture(state, texture_data, palette_data);
             key_out->binding->data_hash = tex_data_hash;
             key_out->binding->scale = 1;
+#ifdef __ANDROID__
+            android_log_texture_stage_errors(i, "generate_texture", &state,
+                                             key_out->binding->gl_target);
+#endif
         } else {
             // Saved an upload! Reuse existing texture in graphics memory.
             glBindTexture(key_out->binding->gl_target,
                           key_out->binding->gl_texture);
+#ifdef __ANDROID__
+            android_log_texture_stage_errors(i, "reuse_cached_binding", &state,
+                                             key_out->binding->gl_target);
+#endif
         }
 
         key_out->possibly_dirty = false;
@@ -684,6 +753,10 @@ void pgraph_gl_bind_textures(NV2AState *d)
             pgraph_gl_render_surface_to_texture(d, surface, binding, &state, i);
             binding->draw_time = surface->draw_time;
             binding->scale = pg->surface_scale_factor;
+#ifdef __ANDROID__
+            android_log_texture_stage_errors(i, "render_surface_to_texture",
+                                             &state, binding->gl_target);
+#endif
         }
 
         apply_texture_parameters(r,
@@ -695,16 +768,29 @@ void pgraph_gl_bind_textures(NV2AState *d)
                                  state.border,
                                  border_color,
                                  max_anisotropy);
+#ifdef __ANDROID__
+        android_log_texture_stage_errors(i, "apply_texture_parameters", &state,
+                                         binding->gl_target);
+#endif
 
         if (r->texture_binding[i]) {
             if (r->texture_binding[i]->gl_target != binding->gl_target) {
                 glBindTexture(r->texture_binding[i]->gl_target, 0);
+#ifdef __ANDROID__
+                android_log_texture_stage_errors(
+                    i, "unbind_old_target", &state,
+                    r->texture_binding[i]->gl_target);
+#endif
             }
             texture_binding_destroy(r->texture_binding[i]);
         }
         r->texture_binding[i] = binding;
         pg->texture_dirty[i] = false;
     }
+
+#ifdef __ANDROID__
+    android_log_gl_errors("pgraph_gl_bind_textures");
+#endif
     NV2A_GL_DGROUP_END();
 }
 
@@ -1143,8 +1229,21 @@ static TextureBinding* generate_texture(const TextureShape s,
     }
 #endif
     if (apply_swizzle) {
+#ifdef __ANDROID__
+        /* GLES exposes per-channel texture swizzles, not the desktop RGBA
+         * vector pname. */
+        glTexParameteri(gl_target, GL_TEXTURE_SWIZZLE_R,
+                        f.gl_swizzle_mask[0]);
+        glTexParameteri(gl_target, GL_TEXTURE_SWIZZLE_G,
+                        f.gl_swizzle_mask[1]);
+        glTexParameteri(gl_target, GL_TEXTURE_SWIZZLE_B,
+                        f.gl_swizzle_mask[2]);
+        glTexParameteri(gl_target, GL_TEXTURE_SWIZZLE_A,
+                        f.gl_swizzle_mask[3]);
+#else
         glTexParameteriv(gl_target, GL_TEXTURE_SWIZZLE_RGBA,
                          (const GLint *)f.gl_swizzle_mask);
+#endif
     }
 
     TextureBinding* ret = (TextureBinding *)g_malloc(sizeof(TextureBinding));

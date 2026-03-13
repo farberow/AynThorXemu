@@ -217,6 +217,11 @@ typedef struct PGRAPHGLState {
     struct s2t_rndr {
         GLuint fbo, vao, vbo, prog;
         GLuint tex_loc, surface_size_loc;
+#ifdef __ANDROID__
+        GLuint depth_prog;
+        GLuint depth_tex_loc;
+        GLint depth_scale_loc;
+#endif
     } s2t_rndr;
 
     struct disp_rndr {
