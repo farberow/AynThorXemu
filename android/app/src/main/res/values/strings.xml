@@ -3,19 +3,29 @@
   <string name="setup_title">Welcome to X1 BOX</string>
   <string name="setup_subtitle">Locate your original Xbox files.</string>
   <string name="setup_not_set">Not set</string>
+  <string name="setup_selected_file_fallback_name">selected file</string>
+  <string name="setup_validating_file">Checking file...</string>
+  <string name="setup_file_validation_failed">Failed to read the selected file.</string>
   <string name="setup_back">Back</string>
   <string name="setup_next">Next</string>
   <string name="setup_finish">Finish</string>
 
   <string name="setup_mcpx_title">MCPX Boot ROM</string>
-  <string name="setup_mcpx_body">Choose the MCPX boot ROM file for your console.</string>
+  <string name="setup_mcpx_body">Choose the MCPX boot ROM file for your console. The wizard verifies the required 512-byte mcpx_1.0.bin MD5.</string>
   <string name="setup_pick_mcpx">Choose MCPX ROM</string>
   <string name="setup_mcpx_value">MCPX ROM: %1$s</string>
+  <string name="setup_mcpx_verified">Verified MCPX boot ROM</string>
+  <string name="setup_mcpx_copy_failed">Failed to copy MCPX ROM</string>
+  <string name="setup_mcpx_invalid_size">%1$s is %2$s, so it does not look like the required MCPX boot ROM. xemu expects the 512-byte mcpx_1.0.bin with MD5 %3$s.</string>
+  <string name="setup_mcpx_invalid_hash">%1$s is 512 B, but its MD5 is %2$s. xemu expects %3$s for mcpx_1.0.bin.</string>
+  <string name="setup_mcpx_invalid_bad_dump">This MCPX dump matches the known bad off-bytes hash reported by xemu. Re-dump it; xemu expects MD5 %1$s.</string>
 
   <string name="setup_flash_title">Flash ROM (BIOS)</string>
-  <string name="setup_flash_body">Choose the flash ROM / BIOS image.</string>
+  <string name="setup_flash_body">Choose the flash ROM / BIOS image. This is separate from the 512-byte MCPX boot ROM.</string>
   <string name="setup_pick_flash">Choose Flash ROM</string>
   <string name="setup_flash_value">Flash ROM: %1$s</string>
+  <string name="setup_flash_copy_failed">Failed to copy flash ROM</string>
+  <string name="setup_flash_invalid_mcpx">%1$s looks like the MCPX boot ROM, not a BIOS. Pick a flash ROM / BIOS image instead.</string>
 
   <string name="setup_hdd_title">Hard Disk</string>
   <string name="setup_hdd_body">Choose your Xbox hard disk image.</string>

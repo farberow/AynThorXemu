@@ -3,6 +3,7 @@ package com.izzy2lost.x1box
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.format.Formatter
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -15,8 +16,22 @@ import com.google.android.material.button.MaterialButton
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.security.MessageDigest
+import java.util.Locale
 
 class SetupWizardActivity : AppCompatActivity() {
+  companion object {
+    private const val EXPECTED_MCPX_MD5 = "d49c52a4102f6df7bcf8d0617ac475ed"
+    private const val KNOWN_BAD_MCPX_MD5 = "196a5f59a13382c185636e691d6c323d"
+    private const val EXPECTED_MCPX_SIZE_BYTES = 512L
+  }
+
+  private data class FileFingerprint(
+    val displayName: String,
+    val sizeBytes: Long,
+    val md5: String,
+  )
+
   private val prefs by lazy { getSharedPreferences("x1box_prefs", MODE_PRIVATE) }
 
   private lateinit var pageMcpx: View
@@ -57,16 +72,19 @@ class SetupWizardActivity : AppCompatActivity() {
           showExtensionError(mcpxExts)
           return@registerForActivityResult
         }
-        persistUriPermission(uri)
-        mcpxUri = uri
-        prefs.edit().putString("mcpxUri", uri.toString()).apply()
-        copyUriAsync(uri, "mcpx.bin") { path ->
-          if (path != null) {
-            mcpxPath = path
-            prefs.edit().putString("mcpxPath", path).apply()
-          } else {
-            Toast.makeText(this, "Failed to copy MCPX ROM", Toast.LENGTH_LONG).show()
-          }
+        copyValidatedCoreFileAsync(
+          uri = uri,
+          destName = "mcpx.bin",
+          validator = ::validateSelectedMcpxFile,
+        ) { path ->
+          persistUriPermission(uri)
+          mcpxUri = uri
+          mcpxPath = path
+          prefs.edit()
+            .putString("mcpxUri", uri.toString())
+            .putString("mcpxPath", path)
+            .apply()
+          Toast.makeText(this, R.string.setup_mcpx_verified, Toast.LENGTH_SHORT).show()
           updateMcpxSelection()
           updateButtons()
         }
@@ -80,16 +98,18 @@ class SetupWizardActivity : AppCompatActivity() {
           showExtensionError(flashExts)
           return@registerForActivityResult
         }
-        persistUriPermission(uri)
-        flashUri = uri
-        prefs.edit().putString("flashUri", uri.toString()).apply()
-        copyUriAsync(uri, "flash.bin") { path ->
-          if (path != null) {
-            flashPath = path
-            prefs.edit().putString("flashPath", path).apply()
-          } else {
-            Toast.makeText(this, "Failed to copy flash ROM", Toast.LENGTH_LONG).show()
-          }
+        copyValidatedCoreFileAsync(
+          uri = uri,
+          destName = "flash.bin",
+          validator = ::validateSelectedFlashFile,
+        ) { path ->
+          persistUriPermission(uri)
+          flashUri = uri
+          flashPath = path
+          prefs.edit()
+            .putString("flashUri", uri.toString())
+            .putString("flashPath", path)
+            .apply()
           updateFlashSelection()
           updateButtons()
         }
@@ -133,8 +153,8 @@ class SetupWizardActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    mcpxPath = loadLocalPath("mcpxPath")
-    flashPath = loadLocalPath("flashPath")
+    mcpxPath = loadValidatedLocalPath("mcpxPath", "mcpxUri", ::isSavedMcpxFileValid)
+    flashPath = loadValidatedLocalPath("flashPath", "flashUri", ::isSavedFlashFileValid)
     hddPath = loadLocalPath("hddPath")
     mcpxUri = prefs.getString("mcpxUri", null)?.let(Uri::parse)
     flashUri = prefs.getString("flashUri", null)?.let(Uri::parse)
@@ -308,6 +328,23 @@ class SetupWizardActivity : AppCompatActivity() {
     return path
   }
 
+  private fun loadValidatedLocalPath(
+    pathKey: String,
+    uriKey: String,
+    validator: (File) -> Boolean,
+  ): String? {
+    val path = loadLocalPath(pathKey) ?: return null
+    val file = File(path)
+    if (validator(file)) {
+      return path
+    }
+    prefs.edit()
+      .remove(pathKey)
+      .remove(uriKey)
+      .apply()
+    return null
+  }
+
   private fun isFileReady(path: String?): Boolean {
     return path != null && File(path).isFile
   }
@@ -368,6 +405,180 @@ class SetupWizardActivity : AppCompatActivity() {
       Log.e("xemu-android", "Copy failed for $destName", e)
       null
     }
+  }
+
+  private fun copyValidatedCoreFileAsync(
+    uri: Uri,
+    destName: String,
+    validator: (FileFingerprint) -> String?,
+    onSuccess: (String) -> Unit,
+  ) {
+    if (isCopying) return
+    isCopying = true
+    updateButtons()
+    Toast.makeText(this, R.string.setup_validating_file, Toast.LENGTH_SHORT).show()
+    Thread {
+      val fingerprint = readFingerprint(uri)
+      val validationError = if (fingerprint != null) {
+        validator(fingerprint)
+      } else {
+        getString(R.string.setup_file_validation_failed)
+      }
+      val copiedPath = if (fingerprint != null && validationError == null) {
+        copyUriToAppStorage(uri, destName)
+      } else {
+        null
+      }
+
+      runOnUiThread {
+        isCopying = false
+        when {
+          fingerprint == null -> {
+            Toast.makeText(this, R.string.setup_file_validation_failed, Toast.LENGTH_LONG).show()
+          }
+          validationError != null -> {
+            Toast.makeText(this, validationError, Toast.LENGTH_LONG).show()
+          }
+          copiedPath != null -> {
+            onSuccess(copiedPath)
+            return@runOnUiThread
+          }
+          destName == "mcpx.bin" -> {
+            Toast.makeText(this, R.string.setup_mcpx_copy_failed, Toast.LENGTH_LONG).show()
+          }
+          else -> {
+            Toast.makeText(this, R.string.setup_flash_copy_failed, Toast.LENGTH_LONG).show()
+          }
+        }
+        updateMcpxSelection()
+        updateFlashSelection()
+        updateButtons()
+      }
+    }.start()
+  }
+
+  private fun validateSelectedMcpxFile(fingerprint: FileFingerprint): String? {
+    if (fingerprint.md5 == EXPECTED_MCPX_MD5) {
+      return null
+    }
+    if (fingerprint.md5 == KNOWN_BAD_MCPX_MD5) {
+      return getString(R.string.setup_mcpx_invalid_bad_dump, EXPECTED_MCPX_MD5)
+    }
+
+    val sizeLabel = Formatter.formatShortFileSize(this, fingerprint.sizeBytes)
+    return if (fingerprint.sizeBytes != EXPECTED_MCPX_SIZE_BYTES) {
+      getString(
+        R.string.setup_mcpx_invalid_size,
+        fingerprint.displayName,
+        sizeLabel,
+        EXPECTED_MCPX_MD5,
+      )
+    } else {
+      getString(
+        R.string.setup_mcpx_invalid_hash,
+        fingerprint.displayName,
+        fingerprint.md5,
+        EXPECTED_MCPX_MD5,
+      )
+    }
+  }
+
+  private fun validateSelectedFlashFile(fingerprint: FileFingerprint): String? {
+    if (fingerprint.sizeBytes == EXPECTED_MCPX_SIZE_BYTES ||
+      fingerprint.md5 == EXPECTED_MCPX_MD5 ||
+      fingerprint.md5 == KNOWN_BAD_MCPX_MD5
+    ) {
+      return getString(R.string.setup_flash_invalid_mcpx, fingerprint.displayName)
+    }
+    return null
+  }
+
+  private fun isSavedMcpxFileValid(file: File): Boolean {
+    val fingerprint = readFingerprint(file) ?: return false
+    return validateSelectedMcpxFile(fingerprint) == null
+  }
+
+  private fun isSavedFlashFileValid(file: File): Boolean {
+    val fingerprint = readFingerprint(file) ?: return false
+    return validateSelectedFlashFile(fingerprint) == null
+  }
+
+  private fun readFingerprint(uri: Uri): FileFingerprint? {
+    val displayName = queryDisplayName(uri)
+    return try {
+      contentResolver.openInputStream(uri)?.use { input ->
+        buildFingerprint(displayName) { digest ->
+          val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+          var total = 0L
+          while (true) {
+            val read = input.read(buffer)
+            if (read < 0) {
+              break
+            }
+            if (read == 0) {
+              continue
+            }
+            digest.update(buffer, 0, read)
+            total += read.toLong()
+          }
+          total
+        }
+      }
+    } catch (_: IOException) {
+      null
+    }
+  }
+
+  private fun readFingerprint(file: File): FileFingerprint? {
+    return try {
+      file.inputStream().use { input ->
+        buildFingerprint(file.name) { digest ->
+          val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+          var total = 0L
+          while (true) {
+            val read = input.read(buffer)
+            if (read < 0) {
+              break
+            }
+            if (read == 0) {
+              continue
+            }
+            digest.update(buffer, 0, read)
+            total += read.toLong()
+          }
+          total
+        }
+      }
+    } catch (_: IOException) {
+      null
+    }
+  }
+
+  private fun buildFingerprint(
+    displayName: String?,
+    reader: (MessageDigest) -> Long,
+  ): FileFingerprint {
+    val digest = MessageDigest.getInstance("MD5")
+    val sizeBytes = reader(digest)
+    val md5 = digest.digest().joinToString(separator = "") { byte ->
+      String.format(Locale.US, "%02x", byte.toInt() and 0xFF)
+    }
+    return FileFingerprint(
+      displayName = displayName ?: getString(R.string.setup_selected_file_fallback_name),
+      sizeBytes = sizeBytes,
+      md5 = md5,
+    )
+  }
+
+  private fun queryDisplayName(uri: Uri): String? {
+    return contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+      val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+      if (nameIndex >= 0 && cursor.moveToFirst()) {
+        cursor.getString(nameIndex)
+      } else {
+        null
+      }
+    } ?: uri.lastPathSegment
   }
 
   private fun isAllowedExtension(uri: Uri, allowed: Set<String>): Boolean {
