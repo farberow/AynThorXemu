@@ -3,7 +3,6 @@ package com.izzy2lost.x1box
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
@@ -11,8 +10,6 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
-import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -609,11 +606,13 @@ class GameLibraryActivity : AppCompatActivity() {
     for (game in games) {
       val item = inflater.inflate(R.layout.item_game_entry, gamesListContainer, false)
       val nameText = item.findViewById<TextView>(R.id.game_name_text)
+      val convertWarningText = item.findViewById<TextView>(R.id.game_convert_warning_text)
       val sizeText = item.findViewById<TextView>(R.id.game_size_text)
       val pathText = item.findViewById<TextView>(R.id.game_path_text)
       val coverImage = item.findViewById<ImageView>(R.id.game_list_cover_image)
 
       nameText.text = game.title
+      bindConvertibleWarning(convertWarningText, game)
       sizeText.text = buildGameSizeText(game)
       pathText.text = game.relativePath
 
@@ -654,9 +653,11 @@ class GameLibraryActivity : AppCompatActivity() {
       row!!.addView(item, itemLp)
 
       val nameText = item.findViewById<TextView>(R.id.game_cover_name_text)
+      val convertWarningText = item.findViewById<TextView>(R.id.game_cover_convert_warning_text)
       val coverImage = item.findViewById<ImageView>(R.id.game_cover_image)
 
       nameText.text = game.title
+      bindConvertibleWarning(convertWarningText, game)
       item.setOnClickListener { launchGame(game) }
       item.setOnLongClickListener { showGameContextMenu(game); true }
       bindCoverArt(coverImage, game)
@@ -1199,29 +1200,16 @@ class GameLibraryActivity : AppCompatActivity() {
     }
   }
 
-  private fun buildGameSizeText(game: GameEntry): CharSequence {
-    val sizeLabel = getString(R.string.library_game_size, formatSize(game.sizeBytes))
-    if (game.discImageFormat != DiscImageFormat.REGULAR_ISO) {
-      return sizeLabel
+  private fun bindConvertibleWarning(view: TextView, game: GameEntry) {
+    view.visibility = if (game.discImageFormat == DiscImageFormat.REGULAR_ISO) {
+      View.VISIBLE
+    } else {
+      View.GONE
     }
+  }
 
-    return SpannableStringBuilder(sizeLabel).apply {
-      append("  ")
-      val badgeStart = length
-      append(getString(R.string.library_regular_iso_badge))
-      setSpan(
-        ForegroundColorSpan(getColor(R.color.xemu_warning)),
-        badgeStart,
-        length,
-        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-      )
-      setSpan(
-        StyleSpan(Typeface.BOLD),
-        badgeStart,
-        length,
-        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-      )
-    }
+  private fun buildGameSizeText(game: GameEntry): CharSequence {
+    return getString(R.string.library_game_size, formatSize(game.sizeBytes))
   }
 
   private fun isConvertibleIso(game: GameEntry): Boolean {

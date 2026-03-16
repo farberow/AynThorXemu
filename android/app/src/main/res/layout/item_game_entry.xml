@@ -54,6 +54,18 @@
         android:textAppearance="@style/TextAppearance.Material3.TitleSmall" />
 
       <TextView
+        android:id="@+id/game_convert_warning_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:maxLines="1"
+        android:text="@string/library_regular_iso_badge"
+        android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+        android:textColor="@color/xemu_warning"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+      <TextView
         android:id="@+id/game_size_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

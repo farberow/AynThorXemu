@@ -42,8 +42,25 @@
     android:maxLines="2"
     android:textAlignment="center"
     android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
-    app:layout_constraintBottom_toBottomOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toBottomOf="@id/game_cover_art_card" />
+
+  <TextView
+    android:id="@+id/game_cover_convert_warning_text"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:gravity="center_horizontal"
+    android:maxLines="1"
+    android:text="@string/library_regular_iso_badge"
+    android:textAlignment="center"
+    android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+    android:textColor="@color/xemu_warning"
+    android:textStyle="bold"
+    android:visibility="gone"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/game_cover_name_text" />
 </androidx.constraintlayout.widget.ConstraintLayout>
