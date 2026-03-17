@@ -44,8 +44,10 @@ android {
           "-DXEMU_ENABLE_XISO_CONVERTER=ON",
           "-DCMAKE_C_FLAGS_DEBUG=-O2 -g0",
           "-DCMAKE_CXX_FLAGS_DEBUG=-O2 -g0",
-          "-DCMAKE_C_FLAGS_RELEASE=-O2 -g0",
-          "-DCMAKE_CXX_FLAGS_RELEASE=-O2 -g0"
+          "-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O3 -g0",
+          "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O3 -g0",
+          "-DCMAKE_C_FLAGS_RELEASE=-O3 -g0",
+          "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -g0"
         )
         cppFlags += listOf("-std=c++17", "-fexceptions", "-frtti")
       }
