@@ -183,6 +183,10 @@ static bool sdl2_gl_has_extension(const char *ext_list, const char *ext)
 
 static void android_log_gl_error(const char *stage)
 {
+    if (!android_render_logs_enabled()) {
+        return;
+    }
+
     GLenum err;
     bool logged = false;
     while ((err = glGetError()) != GL_NO_ERROR) {
@@ -1377,7 +1381,7 @@ void xemu_android_display_loop(void)
     }
 #ifdef __ANDROID__
     xemu_android_refresh_frame_limit_from_env();
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(g_config.display.window.vsync ? 1 : 0);
     xemu_hud_init(m_window, m_context);
 #endif
     tcg_register_init_ctx();

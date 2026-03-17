@@ -31,6 +31,8 @@ import java.util.zip.ZipInputStream
 
 class SettingsActivity : AppCompatActivity() {
   companion object {
+    const val EXTRA_INITIAL_ORIENTATION =
+      "com.izzy2lost.x1box.extra.INITIAL_ORIENTATION"
     private const val PREF_ADVANCED_EXPERIMENTAL_EXPANDED = "settings_advanced_experimental_expanded"
     private const val PREF_INSIGNIA_SETUP_URI = "setting_insignia_setup_assistant_uri"
     private const val PREF_INSIGNIA_SETUP_NAME = "setting_insignia_setup_assistant_name"
@@ -129,6 +131,7 @@ class SettingsActivity : AppCompatActivity() {
   private var isImportingDashboard = false
   private var isPreparingInsignia = false
 
+  private lateinit var switchDebugLogs: MaterialSwitch
   private lateinit var switchNetworkEnable: MaterialSwitch
   private lateinit var tvVulkanDriverName: TextView
   private lateinit var tvInsigniaStatus: TextView
@@ -205,9 +208,17 @@ class SettingsActivity : AppCompatActivity() {
       launchInsigniaSetupAssistant(uri)
     }
 
+  private val exportDebugLogDocument =
+    registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri: Uri? ->
+      uri ?: return@registerForActivityResult
+      exportDebugLog(uri)
+    }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    applyInitialOrientationFromIntent()
     OrientationLocker(this).enable()
+    DebugLog.initialize(this)
     setContentView(R.layout.activity_settings)
     EdgeToEdgeHelper.enable(this)
     EdgeToEdgeHelper.applySystemBarPadding(findViewById(R.id.settings_scroll))
@@ -230,10 +241,12 @@ class SettingsActivity : AppCompatActivity() {
     val switchFpu         = findViewById<MaterialSwitch>(R.id.switch_hard_fpu)
     val switchVsync       = findViewById<MaterialSwitch>(R.id.switch_vsync)
     val switchSkipBootAnim = findViewById<MaterialSwitch>(R.id.switch_skip_boot_anim)
+    switchDebugLogs      = findViewById(R.id.switch_debug_logs)
     val toggleAudioDriver = findViewById<MaterialButtonToggleGroup>(R.id.toggle_audio_driver)
     val btnSave           = findViewById<MaterialButton>(R.id.btn_settings_save)
     val btnRedoSetup      = findViewById<MaterialButton>(R.id.btn_redo_setup_wizard)
     val btnClearCache     = findViewById<MaterialButton>(R.id.btn_clear_system_cache)
+    val btnExportDebugLog = findViewById<MaterialButton>(R.id.btn_export_debug_log)
     val btnInitializeRetailHdd = findViewById<MaterialButton>(R.id.btn_initialize_retail_hdd)
     switchNetworkEnable  = findViewById(R.id.switch_network_enable)
     tvInsigniaStatus     = findViewById(R.id.tv_insignia_status)
@@ -317,9 +330,11 @@ class SettingsActivity : AppCompatActivity() {
     switchHrtf.isChecked    = prefs.getBoolean("setting_hrtf", true)
     switchShaders.isChecked = prefs.getBoolean("setting_cache_shaders", true)
     switchFpu.isChecked     = prefs.getBoolean("setting_hard_fpu", true)
-    switchVsync.isChecked   = prefs.getBoolean("setting_vsync", true)
+    switchVsync.isChecked   = prefs.getBoolean("setting_vsync", false)
     switchSkipBootAnim.isChecked =
       prefs.getBoolean("setting_skip_boot_anim", false)
+    switchDebugLogs.isChecked =
+      prefs.getBoolean(DebugLog.PREF_ENABLED, false)
     switchNetworkEnable.isChecked =
       prefs.getBoolean("setting_network_enable", false)
 
@@ -409,6 +424,8 @@ class SettingsActivity : AppCompatActivity() {
         R.id.btn_filtering_nearest -> "nearest"
         else                       -> "linear"
       }
+      val wasDebugLoggingEnabled = prefs.getBoolean(DebugLog.PREF_ENABLED, false)
+      val enableDebugLogs = switchDebugLogs.isChecked
 
       val edit = prefs.edit()
         .putInt("setting_display_mode", selectedDisplayMode)
@@ -422,6 +439,7 @@ class SettingsActivity : AppCompatActivity() {
         .putBoolean("setting_hard_fpu", switchFpu.isChecked)
         .putBoolean("setting_vsync", switchVsync.isChecked)
         .putBoolean("setting_skip_boot_anim", switchSkipBootAnim.isChecked)
+        .putBoolean(DebugLog.PREF_ENABLED, enableDebugLogs)
         .putBoolean("setting_network_enable", switchNetworkEnable.isChecked)
         .putString("setting_audio_driver", selectedAudioDriver)
         .putString("setting_filtering", selectedFiltering)
@@ -437,12 +455,24 @@ class SettingsActivity : AppCompatActivity() {
       }
 
       edit.apply()
+      DebugLog.setEnabled(
+        context = this@SettingsActivity,
+        value = enableDebugLogs,
+        resetLogs = enableDebugLogs && !wasDebugLoggingEnabled
+      )
 
       return applyEepromEdits()
     }
 
     btnClearCache.setOnClickListener {
       showClearCacheConfirmation()
+    }
+    btnExportDebugLog.setOnClickListener {
+      if (!DebugLog.hasAnyLog(this)) {
+        Toast.makeText(this, R.string.settings_export_debug_log_empty, Toast.LENGTH_LONG).show()
+        return@setOnClickListener
+      }
+      exportDebugLogDocument.launch(DebugLog.exportDefaultFileName())
     }
 
     btnInitializeRetailHdd.setOnClickListener {
@@ -456,6 +486,15 @@ class SettingsActivity : AppCompatActivity() {
     }
   }
 
+  private fun applyInitialOrientationFromIntent() {
+    val initialOrientation = intent.getIntExtra(EXTRA_INITIAL_ORIENTATION, Int.MIN_VALUE)
+    if (initialOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT ||
+      initialOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    ) {
+      requestedOrientation = initialOrientation
+    }
+  }
+
   private fun setAdvancedExperimentalExpanded(expanded: Boolean) {
     layoutAdvancedExperimentalContent.visibility = if (expanded) View.VISIBLE else View.GONE
     btnToggleAdvancedExperimental.text = getString(
@@ -466,6 +505,21 @@ class SettingsActivity : AppCompatActivity() {
       }
     )
     prefs.edit().putBoolean(PREF_ADVANCED_EXPERIMENTAL_EXPANDED, expanded).apply()
+  }
+
+  private fun exportDebugLog(uri: Uri) {
+    try {
+      contentResolver.openOutputStream(uri, "w")?.use { stream ->
+        DebugLog.exportCombined(this, stream)
+      } ?: throw IOException("Could not open the selected export location.")
+      Toast.makeText(this, R.string.settings_export_debug_log_success, Toast.LENGTH_LONG).show()
+    } catch (error: Exception) {
+      Toast.makeText(
+        this,
+        getString(R.string.settings_export_debug_log_failed, error.message ?: "unknown error"),
+        Toast.LENGTH_LONG
+      ).show()
+    }
   }
 
   private fun openExternalLink(url: String) {

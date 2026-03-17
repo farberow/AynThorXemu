@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import java.io.File
 
@@ -15,6 +14,7 @@ class LauncherActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    DebugLog.initialize(this)
     OrientationLocker(this).enable()
 
     val prefs = getSharedPreferences("x1box_prefs", MODE_PRIVATE)
@@ -113,16 +113,16 @@ class LauncherActivity : Activity() {
         .commit()
 
       if (hasMcpx && hasFlash && hasHdd) {
-        Log.i(TAG, "Frontend launch resolved via ${frontendLaunch.source}")
+        DebugLog.i(TAG) { "Frontend launch resolved via ${frontendLaunch.source}" }
         startActivity(Intent(this, MainActivity::class.java))
         finish()
         return
       }
 
-      Log.i(TAG, "Frontend launch queued, but core setup is incomplete")
+      DebugLog.i(TAG) { "Frontend launch queued, but core setup is incomplete" }
       Toast.makeText(this, R.string.frontend_launch_setup_required, Toast.LENGTH_SHORT).show()
     } else if (hasExternalLaunchPayload(intent)) {
-      Log.w(TAG, "Frontend intent received but no accessible game target was resolved")
+      DebugLog.w(TAG) { "Frontend intent received but no accessible game target was resolved" }
       Toast.makeText(this, R.string.frontend_launch_unresolved, Toast.LENGTH_LONG).show()
     }
 

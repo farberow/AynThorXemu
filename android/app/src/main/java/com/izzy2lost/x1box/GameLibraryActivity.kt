@@ -43,6 +43,8 @@ import java.util.concurrent.ConcurrentHashMap
 class GameLibraryActivity : AppCompatActivity() {
   companion object {
     const val EXTRA_RESTART_LAST_GAME = "com.izzy2lost.x1box.extra.RESTART_LAST_GAME"
+    const val EXTRA_INITIAL_ORIENTATION =
+      "com.izzy2lost.x1box.extra.INITIAL_ORIENTATION"
     private const val SNAPSHOT_PREVIEW_HEADER_SIZE = 12
     private const val TOTAL_SNAPSHOT_SLOTS = 10
     private const val XDVDFS_SECTOR_SIZE = 2048L
@@ -101,7 +103,12 @@ class GameLibraryActivity : AppCompatActivity() {
   private val coverIndex = ConcurrentHashMap<String, String>()
   private val coverCollapsedIndex = ConcurrentHashMap<String, String>()
   private val coverEntries = ArrayList<CoverEntry>()
+  private val coverIndexLock = Any()
+  private val discFormatCacheLock = Any()
+  private val discFormatCache = HashMap<String, DiscImageFormat>()
   @Volatile private var coverIndexLoaded = false
+  @Volatile private var discFormatCacheLoaded = false
+  @Volatile private var discFormatCacheDirty = false
 
   private lateinit var loadingSpinner: ProgressBar
   private lateinit var loadingText: TextView
@@ -148,6 +155,7 @@ class GameLibraryActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    applyInitialOrientationFromIntent()
     OrientationLocker(this).enable()
     setContentView(R.layout.activity_game_library)
     EdgeToEdgeHelper.enable(this)
@@ -188,7 +196,11 @@ class GameLibraryActivity : AppCompatActivity() {
       launchDashboard()
     }
     btnSettings.setOnClickListener {
-      startActivity(Intent(this, SettingsActivity::class.java))
+      startActivity(
+        Intent(this, SettingsActivity::class.java).apply {
+          putExtra(SettingsActivity.EXTRA_INITIAL_ORIENTATION, requestedOrientation)
+        }
+      )
     }
     btnSnapshots.setOnClickListener {
       showSnapshotStartupPicker()
@@ -217,6 +229,15 @@ class GameLibraryActivity : AppCompatActivity() {
     }
 
     loadGames()
+  }
+
+  private fun applyInitialOrientationFromIntent() {
+    val initialOrientation = intent.getIntExtra(EXTRA_INITIAL_ORIENTATION, Int.MIN_VALUE)
+    if (initialOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT ||
+      initialOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    ) {
+      requestedOrientation = initialOrientation
+    }
   }
 
   private fun tryRestartLastGameFromIntent(): Boolean {
@@ -539,6 +560,7 @@ class GameLibraryActivity : AppCompatActivity() {
 
     val generation = ++scanGeneration
     Thread {
+      loadDiscFormatCacheIfNeeded()
       val games = scanFolderForGames(readyFolderUri)
       runOnUiThread {
         if (generation != scanGeneration) {
@@ -813,47 +835,52 @@ class GameLibraryActivity : AppCompatActivity() {
     if (coverIndexLoaded) {
       return
     }
-    try {
-      val lines = assets.open("X1_Covers.txt").bufferedReader().use { it.readLines() }
-      val seenEntries = HashSet<String>()
-      for (line in lines) {
-        val fileName = line.trim()
-        if (fileName.isEmpty() || !fileName.endsWith(".png", ignoreCase = true)) {
-          continue
-        }
-        val gameName = fileName.removeSuffix(".png").trim()
-        val encoded = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20")
-        val url = coverRepoBaseUrl + encoded
-
-        val exactKey = normalizeCoverKey(gameName)
-        val strippedKey = stripTrailingRegion(exactKey)
-        if (exactKey.isNotEmpty()) {
-          coverIndex.putIfAbsent(exactKey, url)
-        }
-        if (strippedKey.isNotEmpty()) {
-          coverIndex.putIfAbsent(strippedKey, url)
-        }
-        val canonical = if (strippedKey.isNotEmpty()) strippedKey else exactKey
-        val collapsed = collapseCoverKey(canonical)
-        if (collapsed.isNotEmpty()) {
-          coverCollapsedIndex.putIfAbsent(collapsed, url)
-        }
-        if (canonical.isNotEmpty() && seenEntries.add("$canonical|$url")) {
-          val tokens = tokenizeCoverKey(canonical)
-          coverEntries.add(
-            CoverEntry(
-              collapsed = collapsed,
-              tokens = tokens,
-              numericTokens = tokens.filterTo(HashSet()) { token -> token.any(Char::isDigit) },
-              url = url
-            )
-          )
-        }
+    synchronized(coverIndexLock) {
+      if (coverIndexLoaded) {
+        return
       }
-    } catch (_: Exception) {
-      // Keep empty index; grid will show placeholders if the asset is unavailable.
+      try {
+        val lines = assets.open("X1_Covers.txt").bufferedReader().use { it.readLines() }
+        val seenEntries = HashSet<String>()
+        for (line in lines) {
+          val fileName = line.trim()
+          if (fileName.isEmpty() || !fileName.endsWith(".png", ignoreCase = true)) {
+            continue
+          }
+          val gameName = fileName.removeSuffix(".png").trim()
+          val encoded = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20")
+          val url = coverRepoBaseUrl + encoded
+
+          val exactKey = normalizeCoverKey(gameName)
+          val strippedKey = stripTrailingRegion(exactKey)
+          if (exactKey.isNotEmpty()) {
+            coverIndex.putIfAbsent(exactKey, url)
+          }
+          if (strippedKey.isNotEmpty()) {
+            coverIndex.putIfAbsent(strippedKey, url)
+          }
+          val canonical = if (strippedKey.isNotEmpty()) strippedKey else exactKey
+          val collapsed = collapseCoverKey(canonical)
+          if (collapsed.isNotEmpty()) {
+            coverCollapsedIndex.putIfAbsent(collapsed, url)
+          }
+          if (canonical.isNotEmpty() && seenEntries.add("$canonical|$url")) {
+            val tokens = tokenizeCoverKey(canonical)
+            coverEntries.add(
+              CoverEntry(
+                collapsed = collapsed,
+                tokens = tokens,
+                numericTokens = tokens.filterTo(HashSet()) { token -> token.any(Char::isDigit) },
+                url = url
+              )
+            )
+          }
+        }
+      } catch (_: Exception) {
+        // Keep empty index; grid will show placeholders if the asset is unavailable.
+      }
+      coverIndexLoaded = true
     }
-    coverIndexLoaded = true
   }
 
   private fun normalizeLookupTitle(input: String): String {
@@ -1249,6 +1276,7 @@ class GameLibraryActivity : AppCompatActivity() {
     stack.add(root to "")
 
     val games = ArrayList<GameEntry>()
+    val seenDiscFormatKeys = HashSet<String>()
     while (stack.isNotEmpty()) {
       val (node, prefix) = stack.removeLast()
       val files = try {
@@ -1265,20 +1293,126 @@ class GameLibraryActivity : AppCompatActivity() {
         if (!child.isFile || !isSupportedGame(name)) {
           continue
         }
+        val sizeBytes = child.length()
         games.add(
           GameEntry(
             title = toGameTitle(name),
             uri = child.uri,
             relativePath = prefix + name,
-            sizeBytes = child.length(),
-            discImageFormat = detectDiscImageFormat(child.uri, name),
+            sizeBytes = sizeBytes,
+            discImageFormat = resolveDiscImageFormat(child.uri, name, sizeBytes, seenDiscFormatKeys),
           )
         )
       }
     }
 
     games.sortBy { it.title.lowercase(Locale.ROOT) }
+    persistDiscFormatCache(seenDiscFormatKeys)
     return games
+  }
+
+  private fun discFormatCacheFile(): File = File(filesDir, "disc_format_cache.tsv")
+
+  private fun loadDiscFormatCacheIfNeeded() {
+    if (discFormatCacheLoaded) {
+      return
+    }
+    synchronized(discFormatCacheLock) {
+      if (discFormatCacheLoaded) {
+        return
+      }
+      val cacheFile = discFormatCacheFile()
+      if (cacheFile.isFile) {
+        runCatching {
+          cacheFile.forEachLine(Charsets.UTF_8) { line ->
+            val split = line.lastIndexOf('\t')
+            if (split <= 0 || split >= line.lastIndex) {
+              return@forEachLine
+            }
+            val key = line.substring(0, split)
+            val formatName = line.substring(split + 1)
+            runCatching { DiscImageFormat.valueOf(formatName) }
+              .getOrNull()
+              ?.let { format -> discFormatCache[key] = format }
+          }
+        }
+      }
+      discFormatCacheLoaded = true
+    }
+  }
+
+  private fun persistDiscFormatCache(seenKeys: Set<String>) {
+    synchronized(discFormatCacheLock) {
+      if (!discFormatCacheLoaded) {
+        return
+      }
+
+      var changed = discFormatCacheDirty
+      val iterator = discFormatCache.keys.iterator()
+      while (iterator.hasNext()) {
+        if (iterator.next() !in seenKeys) {
+          iterator.remove()
+          changed = true
+        }
+      }
+
+      if (!changed) {
+        return
+      }
+
+      val cacheFile = discFormatCacheFile()
+      if (discFormatCache.isEmpty()) {
+        cacheFile.delete()
+        discFormatCacheDirty = false
+        return
+      }
+
+      runCatching {
+        cacheFile.parentFile?.mkdirs()
+        cacheFile.bufferedWriter(Charsets.UTF_8).use { writer ->
+          discFormatCache.entries.forEach { (key, format) ->
+            writer.append(key)
+            writer.append('\t')
+            writer.append(format.name)
+            writer.append('\n')
+          }
+        }
+        discFormatCacheDirty = false
+      }
+    }
+  }
+
+  private fun discFormatCacheKey(uri: Uri, sizeBytes: Long): String =
+    uri.toString() + "\t" + sizeBytes
+
+  private fun resolveDiscImageFormat(
+    uri: Uri,
+    fileName: String,
+    sizeBytes: Long,
+    seenKeys: MutableSet<String>,
+  ): DiscImageFormat {
+    val lower = fileName.lowercase(Locale.ROOT)
+    if (!isDiscImageFormatDetectable(lower)) {
+      return DiscImageFormat.OTHER
+    }
+
+    val cacheKey = discFormatCacheKey(uri, sizeBytes)
+    seenKeys.add(cacheKey)
+
+    synchronized(discFormatCacheLock) {
+      discFormatCache[cacheKey]?.let { cached ->
+        return cached
+      }
+    }
+
+    val detected = detectDiscImageFormat(uri, fileName)
+    synchronized(discFormatCacheLock) {
+      if (discFormatCache[cacheKey] != detected) {
+        discFormatCache[cacheKey] = detected
+        discFormatCacheDirty = true
+      }
+    }
+    return detected
   }
 
   private fun detectDiscImageFormat(uri: Uri, fileName: String): DiscImageFormat {

@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.format.Formatter
-import android.util.Log
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
@@ -152,6 +151,7 @@ class SetupWizardActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    DebugLog.initialize(this)
     OrientationLocker(this).enable()
 
     mcpxPath = loadValidatedLocalPath("mcpxPath", "mcpxUri", ::isSavedMcpxFileValid)
@@ -391,7 +391,7 @@ class SetupWizardActivity : AppCompatActivity() {
     val base = getExternalFilesDir(null) ?: filesDir
     val dir = File(base, "x1box")
     if (!dir.exists() && !dir.mkdirs()) {
-      Log.e("xemu-android", "Failed to create ${dir.absolutePath}")
+      DebugLog.e("xemu-android") { "Failed to create ${dir.absolutePath}" }
       return null
     }
     val target = File(dir, destName)
@@ -403,7 +403,7 @@ class SetupWizardActivity : AppCompatActivity() {
       } ?: return null
       target.absolutePath
     } catch (e: IOException) {
-      Log.e("xemu-android", "Copy failed for $destName", e)
+      DebugLog.e("xemu-android", e) { "Copy failed for $destName" }
       null
     }
   }

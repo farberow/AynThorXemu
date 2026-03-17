@@ -13,9 +13,11 @@
 #include <atomic>
 #include <cctype>
 #include <cstdint>
+#include <cstdarg>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <cstring>
 #include <fstream>
 #include <string>
@@ -36,34 +38,68 @@ extern "C" AddfdInfo* monitor_fdset_add_fd(int fd, bool has_fdset_id,
 namespace {
 constexpr const char* kLogTag = "xemu-android";
 constexpr const char* kPrefsName = "x1box_prefs";
+constexpr const char* kDebugLogPrefKey = "setting_debug_logs_enabled";
+constexpr const char* kDebugLogRelativeDir = "x1box/debug-logs";
+constexpr const char* kNativeDebugLogFileName = "xemu-debug.log";
+constexpr off_t kMaxDebugLogBytes = 4 * 1024 * 1024;
 static std::atomic<bool> g_qemu_init_started{false};
+static std::atomic<bool> g_native_debug_logging_enabled{false};
+static std::string g_native_debug_log_path;
+static SDL_mutex* g_native_debug_log_mutex = nullptr;
 
 static JNIEnv* GetEnv();
 static jobject GetActivity(JNIEnv* env);
 static bool HasException(JNIEnv* env, const char* context);
+static std::string GetFilesDirPath(JNIEnv* env, jobject activity);
+static void ConfigureNativeDebugLogging(JNIEnv* env, jobject activity);
+static bool NativeDebugLoggingEnabled();
+static void AppendNativeDebugLog(const char* level, const char* message);
 
 static void LogInfo(const char* msg) {
+  if (!NativeDebugLoggingEnabled()) {
+    return;
+  }
   __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s", msg);
+  AppendNativeDebugLog("I", msg);
 }
 
 static void LogInfoFmt(const char* fmt, const char* detail) {
+  if (!NativeDebugLoggingEnabled()) {
+    return;
+  }
   __android_log_print(ANDROID_LOG_INFO, kLogTag, fmt, detail);
+  char buffer[1024] = {};
+  std::snprintf(buffer, sizeof(buffer), fmt, detail);
+  AppendNativeDebugLog("I", buffer);
 }
 
 static void LogInfoInt(const char* fmt, int value) {
+  if (!NativeDebugLoggingEnabled()) {
+    return;
+  }
   __android_log_print(ANDROID_LOG_INFO, kLogTag, fmt, value);
+  char buffer[1024] = {};
+  std::snprintf(buffer, sizeof(buffer), fmt, value);
+  AppendNativeDebugLog("I", buffer);
 }
 
 static void LogError(const char* msg) {
   __android_log_print(ANDROID_LOG_ERROR, kLogTag, "%s", msg);
+  AppendNativeDebugLog("E", msg);
 }
 
 static void LogErrorInt(const char* fmt, int value) {
   __android_log_print(ANDROID_LOG_ERROR, kLogTag, fmt, value);
+  char buffer[1024] = {};
+  std::snprintf(buffer, sizeof(buffer), fmt, value);
+  AppendNativeDebugLog("E", buffer);
 }
 
 static void LogErrorFmt(const char* fmt, const char* detail) {
   __android_log_print(ANDROID_LOG_ERROR, kLogTag, fmt, detail);
+  char buffer[1024] = {};
+  std::snprintf(buffer, sizeof(buffer), fmt, detail);
+  AppendNativeDebugLog("E", buffer);
 }
 
 static int g_next_dvd_fdset_id = 9000;
@@ -78,6 +114,43 @@ static bool FileExists(const std::string& path) {
   if (path.empty()) return false;
   struct stat st {};
   return stat(path.c_str(), &st) == 0;
+}
+
+static std::string CurrentNativeLogTimestamp() {
+  std::time_t now = std::time(nullptr);
+  std::tm local_time {};
+  localtime_r(&now, &local_time);
+  char buffer[32] = {};
+  std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &local_time);
+  return std::string(buffer);
+}
+
+static bool NativeDebugLoggingEnabled() {
+  return g_native_debug_logging_enabled.load() && !g_native_debug_log_path.empty();
+}
+
+static void AppendNativeDebugLog(const char* level, const char* message) {
+  if (!NativeDebugLoggingEnabled() || !level || !message || !g_native_debug_log_mutex) {
+    return;
+  }
+
+  SDL_LockMutex(g_native_debug_log_mutex);
+
+  struct stat st {};
+  const bool should_truncate =
+      stat(g_native_debug_log_path.c_str(), &st) == 0 &&
+      st.st_size > kMaxDebugLogBytes;
+
+  std::ofstream out(
+      g_native_debug_log_path,
+      should_truncate ? (std::ios::out | std::ios::trunc)
+                      : (std::ios::out | std::ios::app));
+  if (out.is_open()) {
+    out << CurrentNativeLogTimestamp() << ' ' << level << '/' << kLogTag
+        << ": " << message << '\n';
+  }
+
+  SDL_UnlockMutex(g_native_debug_log_mutex);
 }
 
 static bool IsTcgTuningEnabled() {
@@ -261,6 +334,57 @@ static std::string JStringToString(JNIEnv* env, jstring value) {
   return out;
 }
 
+static std::string GetFilesDirPath(JNIEnv* env, jobject activity) {
+  if (!env || !activity) {
+    return {};
+  }
+
+  jclass activityClass = env->GetObjectClass(activity);
+  if (!activityClass) {
+    return {};
+  }
+
+  jmethodID getFilesDir =
+      env->GetMethodID(activityClass, "getFilesDir", "()Ljava/io/File;");
+  env->DeleteLocalRef(activityClass);
+  if (!getFilesDir) {
+    return {};
+  }
+
+  jobject fileObj = env->CallObjectMethod(activity, getFilesDir);
+  if (HasException(env, "Activity.getFilesDir") || !fileObj) {
+    return {};
+  }
+
+  jclass fileClass = env->GetObjectClass(fileObj);
+  if (!fileClass) {
+    env->DeleteLocalRef(fileObj);
+    return {};
+  }
+
+  jmethodID getAbsolutePath =
+      env->GetMethodID(fileClass, "getAbsolutePath", "()Ljava/lang/String;");
+  if (!getAbsolutePath) {
+    env->DeleteLocalRef(fileClass);
+    env->DeleteLocalRef(fileObj);
+    return {};
+  }
+
+  jstring pathValue = static_cast<jstring>(
+      env->CallObjectMethod(fileObj, getAbsolutePath));
+  std::string path;
+  if (!HasException(env, "File.getAbsolutePath")) {
+    path = JStringToString(env, pathValue);
+  }
+
+  if (pathValue) {
+    env->DeleteLocalRef(pathValue);
+  }
+  env->DeleteLocalRef(fileClass);
+  env->DeleteLocalRef(fileObj);
+  return path;
+}
+
 static bool HasInlineAioCrashFlag(const std::string& flag_path) {
   if (flag_path.empty()) {
     return false;
@@ -425,6 +549,31 @@ static int GetPrefInt(JNIEnv* env, jobject activity, const char* key, int defVal
   }
   env->DeleteLocalRef(prefs);
   return out;
+}
+
+static void ConfigureNativeDebugLogging(JNIEnv* env, jobject activity) {
+  g_native_debug_logging_enabled.store(
+      GetPrefBool(env, activity, kDebugLogPrefKey, false));
+  g_native_debug_log_path.clear();
+
+  if (!g_native_debug_logging_enabled.load()) {
+    return;
+  }
+
+  const std::string files_dir = GetFilesDirPath(env, activity);
+  if (files_dir.empty()) {
+    g_native_debug_logging_enabled.store(false);
+    return;
+  }
+
+  const std::string log_dir = files_dir + "/" + kDebugLogRelativeDir;
+  EnsureDirExists(files_dir + "/x1box");
+  EnsureDirExists(log_dir);
+  g_native_debug_log_path = log_dir + "/" + kNativeDebugLogFileName;
+
+  if (!g_native_debug_log_mutex) {
+    g_native_debug_log_mutex = SDL_CreateMutex();
+  }
 }
 
 static bool IsSeekableFd(int fd) {
@@ -723,7 +872,7 @@ struct EmulatorSettings {
   bool hrtf            = true;
   bool cache_shaders   = true;
   bool hard_fpu        = true;
-  bool vsync           = true;
+  bool vsync           = false;
   bool skip_boot_anim  = false;
   bool network_enabled = false;
 };
@@ -990,7 +1139,7 @@ static SetupFiles SyncSetupFiles() {
       emuSettings.filtering = "nearest";
     }
   }
-  emuSettings.vsync = GetPrefBool(env, activity, "setting_vsync", true);
+  emuSettings.vsync = GetPrefBool(env, activity, "setting_vsync", false);
   out.audio_driver = GetPrefString(env, activity, "setting_audio_driver");
   {
     std::string normalized = ToLowerAscii(out.audio_driver);
@@ -1070,6 +1219,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
+  ConfigureNativeDebugLogging(GetEnv(), GetActivity(GetEnv()));
   LogInfo("SDL_main: start");
   std::string audio_driver_hint = ResolveAndroidAudioDriverHint();
   SDL_SetHintWithPriority(SDL_HINT_AUDIODRIVER, audio_driver_hint.c_str(),

@@ -53,12 +53,10 @@
 
     <activity
       android:name=".GameLibraryActivity"
-      android:screenOrientation="portrait"
       android:exported="false" />
 
     <activity
       android:name=".SettingsActivity"
-      android:screenOrientation="portrait"
       android:exported="false" />
 
   </application>

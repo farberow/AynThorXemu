@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
-import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -78,6 +77,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    DebugLog.initialize(this)
     OrientationLocker(this, landscapeOnly = true).enable()
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     val requestedSlot = intent?.getIntExtra(EXTRA_AUTO_LOAD_SNAPSHOT_SLOT, 0) ?: 0
@@ -265,9 +265,9 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
         0, // nhats
         0  // nballs
       )
-      android.util.Log.d("MainActivity", "Virtual controller registered successfully")
+      DebugLog.d("MainActivity") { "Virtual controller registered successfully" }
     } catch (e: Exception) {
-      android.util.Log.e("MainActivity", "Failed to register virtual controller: ${e.message}")
+      DebugLog.e("MainActivity", e) { "Failed to register virtual controller: ${e.message}" }
     }
   }
 
@@ -329,7 +329,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   }
 
   override fun onDestroy() {
-    Log.i(TAG, "onDestroy()")
+    DebugLog.i(TAG) { "onDestroy()" }
     swipeUpGestureRecognizer.reset()
     inGameMenuDialog?.dismiss()
     inGameMenuDialog = null
@@ -343,7 +343,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
     try {
       org.libsdl.app.SDLControllerManager.nativeRemoveJoystick(-2)
     } catch (e: Exception) {
-      android.util.Log.e("MainActivity", "Failed to unregister virtual controller: ${e.message}")
+      DebugLog.e("MainActivity", e) { "Failed to unregister virtual controller: ${e.message}" }
     }
     
     inputManager?.unregisterInputDeviceListener(this)
@@ -352,17 +352,17 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   }
 
   override fun onUserLeaveHint() {
-    Log.i(TAG, "onUserLeaveHint()")
+    DebugLog.i(TAG) { "onUserLeaveHint()" }
     super.onUserLeaveHint()
   }
 
   override fun onTrimMemory(level: Int) {
-    Log.i(TAG, "onTrimMemory(level=$level)")
+    DebugLog.i(TAG) { "onTrimMemory(level=$level)" }
     super.onTrimMemory(level)
   }
 
   override fun onLowMemory() {
-    Log.w(TAG, "onLowMemory()")
+    DebugLog.w(TAG) { "onLowMemory()" }
     super.onLowMemory()
   }
 
@@ -803,6 +803,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   private fun exitToGameLibrary() {
     val intent = Intent(this, GameLibraryActivity::class.java).apply {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+      putExtra(GameLibraryActivity.EXTRA_INITIAL_ORIENTATION, requestedOrientation)
     }
     startActivity(intent)
     terminateXemuProcessSoon("exit to library")
@@ -826,7 +827,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
       } catch (_: InterruptedException) {
         Thread.currentThread().interrupt()
       }
-      Log.i(TAG, "Terminating :xemu process after $reason")
+      DebugLog.i(TAG) { "Terminating :xemu process after $reason" }
       Process.killProcess(Process.myPid())
     }.start()
   }

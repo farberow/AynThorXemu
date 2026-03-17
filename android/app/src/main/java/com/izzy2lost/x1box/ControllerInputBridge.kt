@@ -33,7 +33,7 @@ class ControllerInputBridge : OnScreenController.ControllerListener {
         }
       }
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "Error on button press: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "Error on button press: ${e.message}" }
     }
   }
 
@@ -49,7 +49,7 @@ class ControllerInputBridge : OnScreenController.ControllerListener {
         }
       }
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "Error on button release: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "Error on button release: ${e.message}" }
     }
   }
 
@@ -66,7 +66,7 @@ class ControllerInputBridge : OnScreenController.ControllerListener {
         }
       }
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "Error on stick move: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "Error on stick move: ${e.message}" }
     }
   }
 
@@ -78,7 +78,7 @@ class ControllerInputBridge : OnScreenController.ControllerListener {
       }
       SDLControllerManager.onNativePadDown(VIRTUAL_DEVICE_ID, keyCode)
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "Error on stick press: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "Error on stick press: ${e.message}" }
     }
   }
 
@@ -90,7 +90,7 @@ class ControllerInputBridge : OnScreenController.ControllerListener {
       }
       SDLControllerManager.onNativePadUp(VIRTUAL_DEVICE_ID, keyCode)
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "Error on stick release: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "Error on stick release: ${e.message}" }
     }
   }
 
@@ -113,12 +113,12 @@ class ControllerInputBridge : OnScreenController.ControllerListener {
         SDLControllerManager.onNativePadUp(VIRTUAL_DEVICE_ID, keyCode)
       }
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "SDL pad event failed for $button: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "SDL pad event failed for $button: ${e.message}" }
     }
     try {
       SDLControllerManager.onNativeJoy(VIRTUAL_DEVICE_ID, axis, axisValue)
     } catch (e: Exception) {
-      android.util.Log.e("ControllerBridge", "SDL joy event failed for $button: ${e.message}")
+      DebugLog.e("ControllerBridge", e) { "SDL joy event failed for $button: ${e.message}" }
     }
   }
 
