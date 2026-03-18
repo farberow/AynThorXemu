@@ -129,6 +129,10 @@ static bool NativeDebugLoggingEnabled() {
   return g_native_debug_logging_enabled.load() && !g_native_debug_log_path.empty();
 }
 
+extern "C" bool xemu_android_is_debug_logging_enabled(void) {
+  return NativeDebugLoggingEnabled();
+}
+
 static void AppendNativeDebugLog(const char* level, const char* message) {
   if (!NativeDebugLoggingEnabled() || !level || !message || !g_native_debug_log_mutex) {
     return;

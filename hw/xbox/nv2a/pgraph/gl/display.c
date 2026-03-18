@@ -31,9 +31,15 @@
 #endif
 
 #ifdef __ANDROID__
+extern bool xemu_android_is_debug_logging_enabled(void);
+
 static void gl_log_errors(const char *ctx)
 {
     GLenum gl_err;
+
+    if (!xemu_android_is_debug_logging_enabled()) {
+        return;
+    }
 
     while ((gl_err = glGetError()) != GL_NO_ERROR) {
         __android_log_print(ANDROID_LOG_WARN, "xemu-android",
