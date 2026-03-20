@@ -33,7 +33,10 @@ class SettingsActivity : AppCompatActivity() {
   companion object {
     const val EXTRA_INITIAL_ORIENTATION =
       "com.izzy2lost.x1box.extra.INITIAL_ORIENTATION"
+    private const val PREFS_NAME = "x1box_prefs"
     private const val PREF_ADVANCED_EXPERIMENTAL_EXPANDED = "settings_advanced_experimental_expanded"
+    private const val PREF_HRTF = "setting_hrtf"
+    private const val PREF_HRTF_DEFAULT_OFF_MIGRATED = "setting_hrtf_default_off_migrated_v1"
     private const val PREF_INSIGNIA_SETUP_URI = "setting_insignia_setup_assistant_uri"
     private const val PREF_INSIGNIA_SETUP_NAME = "setting_insignia_setup_assistant_name"
     private const val PREF_VULKAN_DRIVER_URI = "setting_vulkan_driver_uri"
@@ -44,7 +47,7 @@ class SettingsActivity : AppCompatActivity() {
     private const val VULKAN_DRIVER_FILE_NAME = "vulkan_driver.so"
   }
 
-  private val prefs by lazy { getSharedPreferences("x1box_prefs", Context.MODE_PRIVATE) }
+  private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
   private data class EepromLanguageOption(
     val value: XboxEepromEditor.Language,
@@ -234,6 +237,7 @@ class SettingsActivity : AppCompatActivity() {
     applyInitialOrientationFromIntent()
     OrientationLocker(this).enable()
     DebugLog.initialize(this)
+    applyHrtfDefaultOffMigration()
     setContentView(R.layout.activity_settings)
     EdgeToEdgeHelper.enable(this)
     EdgeToEdgeHelper.applySystemBarPadding(findViewById(R.id.settings_scroll))
@@ -343,7 +347,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     switchDsp.isChecked     = prefs.getBoolean("setting_use_dsp", false)
-    switchHrtf.isChecked    = prefs.getBoolean("setting_hrtf", true)
+    switchHrtf.isChecked    = prefs.getBoolean(PREF_HRTF, false)
     switchShaders.isChecked = prefs.getBoolean("setting_cache_shaders", true)
     switchFpu.isChecked     = prefs.getBoolean("setting_hard_fpu", true)
     switchVsync.isChecked   = prefs.getBoolean("setting_vsync", false)
@@ -463,7 +467,7 @@ class SettingsActivity : AppCompatActivity() {
         .putInt("setting_system_memory_mib", selectedSystemMemoryMiB)
         .putString("setting_tcg_thread", selectedThread)
         .putBoolean("setting_use_dsp", switchDsp.isChecked)
-        .putBoolean("setting_hrtf", switchHrtf.isChecked)
+        .putBoolean(PREF_HRTF, switchHrtf.isChecked)
         .putBoolean("setting_cache_shaders", switchShaders.isChecked)
         .putBoolean("setting_hard_fpu", switchFpu.isChecked)
         .putBoolean("setting_vsync", switchVsync.isChecked)
@@ -526,6 +530,17 @@ class SettingsActivity : AppCompatActivity() {
         ).show()
       }
     }
+  }
+
+  private fun applyHrtfDefaultOffMigration() {
+    if (prefs.getBoolean(PREF_HRTF_DEFAULT_OFF_MIGRATED, false)) {
+      return
+    }
+
+    prefs.edit()
+      .putBoolean(PREF_HRTF, false)
+      .putBoolean(PREF_HRTF_DEFAULT_OFF_MIGRATED, true)
+      .apply()
   }
 
   private fun applyInitialOrientationFromIntent() {

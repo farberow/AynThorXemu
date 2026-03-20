@@ -39,6 +39,9 @@ namespace {
 constexpr const char* kLogTag = "xemu-android";
 constexpr const char* kPrefsName = "x1box_prefs";
 constexpr const char* kDebugLogPrefKey = "setting_debug_logs_enabled";
+constexpr const char* kHrtfPrefKey = "setting_hrtf";
+constexpr const char* kHrtfDefaultOffMigrationPrefKey =
+    "setting_hrtf_default_off_migrated_v1";
 constexpr const char* kDebugLogRelativeDir = "x1box/debug-logs";
 constexpr const char* kNativeDebugLogFileName = "xemu-debug.log";
 constexpr off_t kMaxDebugLogBytes = 4 * 1024 * 1024;
@@ -52,6 +55,7 @@ static jobject GetActivity(JNIEnv* env);
 static bool HasException(JNIEnv* env, const char* context);
 static std::string GetFilesDirPath(JNIEnv* env, jobject activity);
 static void ConfigureNativeDebugLogging(JNIEnv* env, jobject activity);
+static void ApplyHrtfDefaultOffMigration(JNIEnv* env, jobject activity);
 static bool NativeDebugLoggingEnabled();
 static void AppendNativeDebugLog(const char* level, const char* message);
 
@@ -518,6 +522,134 @@ static bool GetPrefBool(JNIEnv* env, jobject activity, const char* key, bool def
   return out;
 }
 
+static void ApplyHrtfDefaultOffMigration(JNIEnv* env, jobject activity) {
+  if (!env || !activity) {
+    return;
+  }
+
+  jclass activityClass = env->GetObjectClass(activity);
+  if (!activityClass) {
+    return;
+  }
+
+  jmethodID getPrefs = env->GetMethodID(
+      activityClass, "getSharedPreferences",
+      "(Ljava/lang/String;I)Landroid/content/SharedPreferences;");
+  env->DeleteLocalRef(activityClass);
+  if (!getPrefs) {
+    return;
+  }
+
+  jstring prefsName = env->NewStringUTF(kPrefsName);
+  if (!prefsName) {
+    return;
+  }
+
+  jobject prefs = env->CallObjectMethod(activity, getPrefs, prefsName, 0);
+  env->DeleteLocalRef(prefsName);
+  if (HasException(env, "getSharedPreferences") || !prefs) {
+    return;
+  }
+
+  jclass prefsClass = env->GetObjectClass(prefs);
+  if (!prefsClass) {
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  jmethodID getBool =
+      env->GetMethodID(prefsClass, "getBoolean", "(Ljava/lang/String;Z)Z");
+  jmethodID edit =
+      env->GetMethodID(prefsClass, "edit",
+                       "()Landroid/content/SharedPreferences$Editor;");
+  if (!getBool || !edit) {
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  jstring migrationKey = env->NewStringUTF(kHrtfDefaultOffMigrationPrefKey);
+  if (!migrationKey) {
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  const jboolean migrated =
+      env->CallBooleanMethod(prefs, getBool, migrationKey, JNI_FALSE);
+  if (HasException(env, "SharedPreferences.getBoolean")) {
+    env->DeleteLocalRef(migrationKey);
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  if (migrated == JNI_TRUE) {
+    env->DeleteLocalRef(migrationKey);
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  jobject editor = env->CallObjectMethod(prefs, edit);
+  if (HasException(env, "SharedPreferences.edit") || !editor) {
+    env->DeleteLocalRef(migrationKey);
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  jclass editorClass = env->GetObjectClass(editor);
+  if (!editorClass) {
+    env->DeleteLocalRef(editor);
+    env->DeleteLocalRef(migrationKey);
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  jmethodID putBool = env->GetMethodID(
+      editorClass, "putBoolean",
+      "(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;");
+  jmethodID apply = env->GetMethodID(editorClass, "apply", "()V");
+  if (!putBool || !apply) {
+    env->DeleteLocalRef(editorClass);
+    env->DeleteLocalRef(editor);
+    env->DeleteLocalRef(migrationKey);
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  jstring hrtfKey = env->NewStringUTF(kHrtfPrefKey);
+  if (!hrtfKey) {
+    env->DeleteLocalRef(editorClass);
+    env->DeleteLocalRef(editor);
+    env->DeleteLocalRef(migrationKey);
+    env->DeleteLocalRef(prefsClass);
+    env->DeleteLocalRef(prefs);
+    return;
+  }
+
+  env->CallObjectMethod(editor, putBool, hrtfKey, JNI_FALSE);
+  if (!HasException(env, "Editor.putBoolean")) {
+    env->CallObjectMethod(editor, putBool, migrationKey, JNI_TRUE);
+    if (!HasException(env, "Editor.putBoolean")) {
+      env->CallVoidMethod(editor, apply);
+      if (!HasException(env, "Editor.apply")) {
+        LogInfo("Applied one-time Android HRTF default-off migration");
+      }
+    }
+  }
+
+  env->DeleteLocalRef(hrtfKey);
+  env->DeleteLocalRef(editorClass);
+  env->DeleteLocalRef(editor);
+  env->DeleteLocalRef(migrationKey);
+  env->DeleteLocalRef(prefsClass);
+  env->DeleteLocalRef(prefs);
+}
+
 static int GetPrefInt(JNIEnv* env, jobject activity, const char* key, int defValue) {
   if (!env || !activity || !key || key[0] == '\0') {
     return defValue;
@@ -873,7 +1005,7 @@ struct EmulatorSettings {
   std::string renderer = "opengl";    // "vulkan" or "opengl"
   std::string filtering = "linear";   // "linear" or "nearest"
   bool use_dsp         = false;
-  bool hrtf            = true;
+  bool hrtf            = false;
   bool cache_shaders   = true;
   bool hard_fpu        = true;
   bool vsync           = false;
@@ -1029,6 +1161,8 @@ static SetupFiles SyncSetupFiles() {
   }
   LogInfoFmt("SyncSetupFiles: base path %s", basePath);
 
+  ApplyHrtfDefaultOffMigration(env, activity);
+
   std::string base = std::string(basePath) + "/x1box";
   EnsureDirExists(base);
   out.eeprom = base + "/eeprom.bin";
@@ -1118,7 +1252,7 @@ static SetupFiles SyncSetupFiles() {
     emuSettings.system_memory_mib = 64;
   }
   emuSettings.use_dsp        = GetPrefBool(env, activity, "setting_use_dsp", false);
-  emuSettings.hrtf           = GetPrefBool(env, activity, "setting_hrtf", true);
+  emuSettings.hrtf           = GetPrefBool(env, activity, kHrtfPrefKey, false);
   emuSettings.cache_shaders  = GetPrefBool(env, activity, "setting_cache_shaders", true);
   emuSettings.hard_fpu       = GetPrefBool(env, activity, "setting_hard_fpu", true);
   emuSettings.skip_boot_anim =
