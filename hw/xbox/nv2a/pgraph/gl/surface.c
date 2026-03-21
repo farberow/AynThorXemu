@@ -189,6 +189,328 @@ static uint8_t android_expand_5_to_8(uint8_t value)
     return (value << 3) | (value >> 2);
 }
 
+#ifdef __aarch64__
+static const uint8_t android_neon_bgra_to_rgba_perm[16] =
+    {2,1,0,3, 6,5,4,7, 10,9,8,11, 14,13,12,15};
+static const uint8_t android_neon_b8g8r8a8_to_rgba_perm[16] =
+    {1,2,3,0, 5,6,7,4, 9,10,11,8, 13,14,15,12};
+static const uint8_t android_neon_r8g8b8a8_to_rgba_perm[16] =
+    {3,2,1,0, 7,6,5,4, 11,10,9,8, 15,14,13,12};
+static const uint8_t android_neon_force_alpha_mask[16] =
+    {0,0,0,0xFF, 0,0,0,0xFF, 0,0,0,0xFF, 0,0,0,0xFF};
+
+static inline void android_neon_shuffle_row_4bpp(const uint8_t *src_row,
+                                                 uint8_t *dst_row,
+                                                 unsigned int width,
+                                                 const uint8_t perm_arr[16],
+                                                 bool force_opaque_alpha)
+{
+    uint8x16_t vperm = vld1q_u8(perm_arr);
+    uint8x16_t valpha_mask = force_opaque_alpha
+        ? vld1q_u8(android_neon_force_alpha_mask)
+        : vdupq_n_u8(0);
+    const uint8_t *src = src_row;
+    uint8_t *dst = dst_row;
+    unsigned int remaining = width;
+
+    while (remaining >= 4) {
+        uint8x16_t v = vqtbl1q_u8(vld1q_u8(src), vperm);
+        vst1q_u8(dst, vorrq_u8(v, valpha_mask));
+        src += 16;
+        dst += 16;
+        remaining -= 4;
+    }
+
+    while (remaining-- > 0) {
+        dst[0] = src[perm_arr[0]];
+        dst[1] = src[perm_arr[1]];
+        dst[2] = src[perm_arr[2]];
+        dst[3] = force_opaque_alpha ? 0xFF : src[perm_arr[3]];
+        src += 4;
+        dst += 4;
+    }
+}
+
+static inline void android_neon_a1x1r5g5b5_to_rgba8_row(
+    const uint8_t *src_row,
+    uint8_t *dst_row,
+    unsigned int width,
+    bool preserve_alpha)
+{
+    const uint16x8_t mask_5 = vdupq_n_u16(0x1F);
+    unsigned int remaining = width;
+    const uint16_t *src = (const uint16_t *)src_row;
+    uint8_t *dst = dst_row;
+
+    while (remaining >= 8) {
+        uint16x8_t pixels = vld1q_u16(src);
+        uint16x8_t r5 = vandq_u16(vshrq_n_u16(pixels, 10), mask_5);
+        uint16x8_t g5 = vandq_u16(vshrq_n_u16(pixels, 5), mask_5);
+        uint16x8_t b5 = vandq_u16(pixels, mask_5);
+        uint8x8_t r8 = vmovn_u16(vorrq_u16(vshlq_n_u16(r5, 3),
+                                           vshrq_n_u16(r5, 2)));
+        uint8x8_t g8 = vmovn_u16(vorrq_u16(vshlq_n_u16(g5, 3),
+                                           vshrq_n_u16(g5, 2)));
+        uint8x8_t b8 = vmovn_u16(vorrq_u16(vshlq_n_u16(b5, 3),
+                                           vshrq_n_u16(b5, 2)));
+        uint8x8_t a8 = preserve_alpha
+            ? vmovn_u16(vceqq_u16(vshrq_n_u16(pixels, 15), vdupq_n_u16(1)))
+            : vdup_n_u8(0xFF);
+        uint8x8x4_t rgba = { { r8, g8, b8, a8 } };
+
+        vst4_u8(dst, rgba);
+        src += 8;
+        dst += 32;
+        remaining -= 8;
+    }
+
+    while (remaining-- > 0) {
+        uint16_t pixel = *src++;
+        dst[0] = android_expand_5_to_8((pixel >> 10) & 0x1F);
+        dst[1] = android_expand_5_to_8((pixel >> 5) & 0x1F);
+        dst[2] = android_expand_5_to_8(pixel & 0x1F);
+        dst[3] = preserve_alpha ? ((pixel & 0x8000) ? 0xFF : 0x00) : 0xFF;
+        dst += 4;
+    }
+}
+
+static inline void android_neon_r5g6b5_to_rgba8_row(const uint8_t *src_row,
+                                                    uint8_t *dst_row,
+                                                    unsigned int width)
+{
+    const uint16x8_t mask_5 = vdupq_n_u16(0x1F);
+    const uint16x8_t mask_6 = vdupq_n_u16(0x3F);
+    unsigned int remaining = width;
+    const uint16_t *src = (const uint16_t *)src_row;
+    uint8_t *dst = dst_row;
+
+    while (remaining >= 8) {
+        uint16x8_t pixels = vld1q_u16(src);
+        uint16x8_t r5 = vandq_u16(vshrq_n_u16(pixels, 11), mask_5);
+        uint16x8_t g6 = vandq_u16(vshrq_n_u16(pixels, 5), mask_6);
+        uint16x8_t b5 = vandq_u16(pixels, mask_5);
+        uint8x8_t r8 = vmovn_u16(vorrq_u16(vshlq_n_u16(r5, 3),
+                                           vshrq_n_u16(r5, 2)));
+        uint8x8_t g8 = vmovn_u16(vorrq_u16(vshlq_n_u16(g6, 2),
+                                           vshrq_n_u16(g6, 4)));
+        uint8x8_t b8 = vmovn_u16(vorrq_u16(vshlq_n_u16(b5, 3),
+                                           vshrq_n_u16(b5, 2)));
+        uint8x8x4_t rgba = { { r8, g8, b8, vdup_n_u8(0xFF) } };
+
+        vst4_u8(dst, rgba);
+        src += 8;
+        dst += 32;
+        remaining -= 8;
+    }
+
+    while (remaining-- > 0) {
+        uint16_t pixel = *src++;
+        dst[0] = android_expand_5_to_8((pixel >> 11) & 0x1F);
+        dst[1] = (uint8_t)(((pixel >> 5) & 0x3F) * 255 / 63);
+        dst[2] = android_expand_5_to_8(pixel & 0x1F);
+        dst[3] = 0xFF;
+        dst += 4;
+    }
+}
+
+static inline void android_neon_rgba8_to_x1r5g5b5_row(const uint8_t *src_row,
+                                                      uint8_t *dst_row,
+                                                      unsigned int width)
+{
+    unsigned int remaining = width;
+    const uint8_t *src = src_row;
+    uint16_t *dst = (uint16_t *)dst_row;
+
+    while (remaining >= 8) {
+        uint8x8x4_t rgba = vld4_u8(src);
+        uint16x8_t r = vshlq_n_u16(vmovl_u8(vshr_n_u8(rgba.val[0], 3)), 10);
+        uint16x8_t g = vshlq_n_u16(vmovl_u8(vshr_n_u8(rgba.val[1], 3)), 5);
+        uint16x8_t b = vmovl_u8(vshr_n_u8(rgba.val[2], 3));
+        uint16x8_t packed =
+            vorrq_u16(vdupq_n_u16(0x8000), vorrq_u16(r, vorrq_u16(g, b)));
+
+        vst1q_u16(dst, packed);
+        src += 32;
+        dst += 8;
+        remaining -= 8;
+    }
+
+    while (remaining-- > 0) {
+        uint16_t packed =
+            0x8000 |
+            ((uint16_t)(src[0] >> 3) << 10) |
+            ((uint16_t)(src[1] >> 3) << 5) |
+            (uint16_t)(src[2] >> 3);
+        *dst++ = packed;
+        src += 4;
+    }
+}
+
+static inline bool android_neon_surface_copy_shrink_row_4bpp(
+    uint8_t *out,
+    const uint8_t *in,
+    unsigned int width,
+    unsigned int factor)
+{
+    uint32_t *dst = (uint32_t *)out;
+    const uint32_t *src = (const uint32_t *)in;
+    unsigned int remaining = width;
+
+    switch (factor) {
+    case 2:
+        while (remaining >= 4) {
+            uint32x4x2_t pixels = vld2q_u32(src);
+            vst1q_u32(dst, pixels.val[0]);
+            src += 8;
+            dst += 4;
+            remaining -= 4;
+        }
+        break;
+    case 3:
+        while (remaining >= 4) {
+            uint32x4x3_t pixels = vld3q_u32(src);
+            vst1q_u32(dst, pixels.val[0]);
+            src += 12;
+            dst += 4;
+            remaining -= 4;
+        }
+        break;
+    case 4:
+        while (remaining >= 4) {
+            uint32x4x4_t pixels = vld4q_u32(src);
+            vst1q_u32(dst, pixels.val[0]);
+            src += 16;
+            dst += 4;
+            remaining -= 4;
+        }
+        break;
+    default:
+        return false;
+    }
+
+    out = (uint8_t *)dst;
+    in = (const uint8_t *)src;
+    while (remaining-- > 0) {
+        *(uint32_t *)out = *(const uint32_t *)in;
+        out += 4;
+        in += 4 * factor;
+    }
+
+    return true;
+}
+
+static inline bool android_neon_surface_copy_shrink_row_2bpp(
+    uint8_t *out,
+    const uint8_t *in,
+    unsigned int width,
+    unsigned int factor)
+{
+    uint16_t *dst = (uint16_t *)out;
+    const uint16_t *src = (const uint16_t *)in;
+    unsigned int remaining = width;
+
+    switch (factor) {
+    case 2:
+        while (remaining >= 8) {
+            uint16x8x2_t pixels = vld2q_u16(src);
+            vst1q_u16(dst, pixels.val[0]);
+            src += 16;
+            dst += 8;
+            remaining -= 8;
+        }
+        break;
+    case 3:
+        while (remaining >= 8) {
+            uint16x8x3_t pixels = vld3q_u16(src);
+            vst1q_u16(dst, pixels.val[0]);
+            src += 24;
+            dst += 8;
+            remaining -= 8;
+        }
+        break;
+    case 4:
+        while (remaining >= 8) {
+            uint16x8x4_t pixels = vld4q_u16(src);
+            vst1q_u16(dst, pixels.val[0]);
+            src += 32;
+            dst += 8;
+            remaining -= 8;
+        }
+        break;
+    default:
+        return false;
+    }
+
+    out = (uint8_t *)dst;
+    in = (const uint8_t *)src;
+    while (remaining-- > 0) {
+        *(uint16_t *)out = *(const uint16_t *)in;
+        out += 2;
+        in += 2 * factor;
+    }
+
+    return true;
+}
+
+static inline void android_neon_pack_depth16_row_to_guest(const uint8_t *src_row,
+                                                          uint8_t *dst_row,
+                                                          unsigned int width)
+{
+    unsigned int remaining = width;
+
+    while (remaining >= 8) {
+        uint8x8x4_t rgba = vld4_u8(src_row);
+        uint8x8x2_t depth16 = { { rgba.val[0], rgba.val[1] } };
+
+        vst2_u8(dst_row, depth16);
+        src_row += 32;
+        dst_row += 16;
+        remaining -= 8;
+    }
+
+    while (remaining-- > 0) {
+        dst_row[0] = src_row[0];
+        dst_row[1] = src_row[1];
+        src_row += 4;
+        dst_row += 2;
+    }
+}
+
+static inline void android_neon_pack_z24s8_row_to_guest(
+    const uint8_t *depth_row,
+    const uint8_t *stencil_row,
+    uint8_t *dst_row,
+    unsigned int width)
+{
+    unsigned int remaining = width;
+
+    while (remaining >= 8) {
+        uint8x8x4_t depth = vld4_u8(depth_row);
+        uint8x8x4_t z24s8 = { {
+            vld1_u8(stencil_row),
+            depth.val[0],
+            depth.val[1],
+            depth.val[2],
+        } };
+
+        vst4_u8(dst_row, z24s8);
+        depth_row += 32;
+        stencil_row += 8;
+        dst_row += 32;
+        remaining -= 8;
+    }
+
+    while (remaining-- > 0) {
+        dst_row[0] = *stencil_row++;
+        dst_row[1] = depth_row[0];
+        dst_row[2] = depth_row[1];
+        dst_row[3] = depth_row[2];
+        depth_row += 4;
+        dst_row += 4;
+    }
+}
+#endif
+
 static void android_surface_guest_to_rgba8(const SurfaceBinding *surface,
                                            const uint8_t *src,
                                            unsigned int width,
@@ -300,90 +622,143 @@ static void android_surface_guest_to_texture_rgba8(
 {
     unsigned int x, y;
 
-    for (y = 0; y < height; y++) {
-        const uint8_t *src_row = src + y * src_stride;
-        uint8_t *dst_row = dst + y * width * 4;
-
-        for (x = 0; x < width; x++) {
-            uint8_t *out = dst_row + x * 4;
-
-            switch (shape->color_format) {
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A1R5G5B5:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A1R5G5B5: {
+    switch (shape->color_format) {
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A1R5G5B5:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A1R5G5B5:
+        for (y = 0; y < height; y++) {
+            const uint8_t *src_row = src + y * src_stride;
+            uint8_t *dst_row = dst + y * width * 4;
+#ifdef __aarch64__
+            android_neon_a1x1r5g5b5_to_rgba8_row(src_row, dst_row, width, true);
+#else
+            for (x = 0; x < width; x++) {
                 uint16_t pixel = lduw_le_p(src_row + x * 2);
+                uint8_t *out = dst_row + x * 4;
                 out[0] = android_expand_5_to_8((pixel >> 10) & 0x1F);
                 out[1] = android_expand_5_to_8((pixel >> 5) & 0x1F);
                 out[2] = android_expand_5_to_8(pixel & 0x1F);
                 out[3] = (pixel & 0x8000) ? 0xFF : 0x00;
-                break;
             }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X1R5G5B5:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X1R5G5B5: {
+#endif
+        }
+        break;
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X1R5G5B5:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X1R5G5B5:
+        for (y = 0; y < height; y++) {
+            const uint8_t *src_row = src + y * src_stride;
+            uint8_t *dst_row = dst + y * width * 4;
+#ifdef __aarch64__
+            android_neon_a1x1r5g5b5_to_rgba8_row(src_row, dst_row, width, false);
+#else
+            for (x = 0; x < width; x++) {
                 uint16_t pixel = lduw_le_p(src_row + x * 2);
+                uint8_t *out = dst_row + x * 4;
                 out[0] = android_expand_5_to_8((pixel >> 10) & 0x1F);
                 out[1] = android_expand_5_to_8((pixel >> 5) & 0x1F);
                 out[2] = android_expand_5_to_8(pixel & 0x1F);
                 out[3] = 0xFF;
-                break;
             }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R5G6B5:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R5G6B5: {
+#endif
+        }
+        break;
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R5G6B5:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R5G6B5:
+        for (y = 0; y < height; y++) {
+            const uint8_t *src_row = src + y * src_stride;
+            uint8_t *dst_row = dst + y * width * 4;
+#ifdef __aarch64__
+            android_neon_r5g6b5_to_rgba8_row(src_row, dst_row, width);
+#else
+            for (x = 0; x < width; x++) {
                 uint16_t pixel = lduw_le_p(src_row + x * 2);
+                uint8_t *out = dst_row + x * 4;
                 out[0] = android_expand_5_to_8((pixel >> 11) & 0x1F);
                 out[1] = (uint8_t)(((pixel >> 5) & 0x3F) * 255 / 63);
                 out[2] = android_expand_5_to_8(pixel & 0x1F);
                 out[3] = 0xFF;
-                break;
             }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8R8G8B8: {
+#endif
+        }
+        break;
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8R8G8B8:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X8R8G8B8:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X8R8G8B8:
+    {
+        bool force_opaque_alpha =
+            (shape->color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X8R8G8B8 ||
+             shape->color_format == NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X8R8G8B8);
+
+        for (y = 0; y < height; y++) {
+            const uint8_t *src_row = src + y * src_stride;
+            uint8_t *dst_row = dst + y * width * 4;
+#ifdef __aarch64__
+            android_neon_shuffle_row_4bpp(src_row, dst_row, width,
+                                          android_neon_bgra_to_rgba_perm,
+                                          force_opaque_alpha);
+#else
+            for (x = 0; x < width; x++) {
                 const uint8_t *pixel = src_row + x * 4;
+                uint8_t *out = dst_row + x * 4;
                 out[0] = pixel[2];
                 out[1] = pixel[1];
                 out[2] = pixel[0];
-                out[3] = pixel[3];
-                break;
+                out[3] = force_opaque_alpha ? 0xFF : pixel[3];
             }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X8R8G8B8:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X8R8G8B8: {
+#endif
+        }
+        break;
+    }
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8B8G8R8:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8:
+        for (y = 0; y < height; y++) {
+            memcpy(dst + y * width * 4, src + y * src_stride, width * 4);
+        }
+        break;
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_B8G8R8A8:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_B8G8R8A8:
+        for (y = 0; y < height; y++) {
+            const uint8_t *src_row = src + y * src_stride;
+            uint8_t *dst_row = dst + y * width * 4;
+#ifdef __aarch64__
+            android_neon_shuffle_row_4bpp(src_row, dst_row, width,
+                                          android_neon_b8g8r8a8_to_rgba_perm,
+                                          false);
+#else
+            for (x = 0; x < width; x++) {
                 const uint8_t *pixel = src_row + x * 4;
-                out[0] = pixel[2];
-                out[1] = pixel[1];
-                out[2] = pixel[0];
-                out[3] = 0xFF;
-                break;
-            }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8B8G8R8:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8: {
-                const uint8_t *pixel = src_row + x * 4;
-                out[0] = pixel[0];
-                out[1] = pixel[1];
-                out[2] = pixel[2];
-                out[3] = pixel[3];
-                break;
-            }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_B8G8R8A8:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_B8G8R8A8: {
-                const uint8_t *pixel = src_row + x * 4;
+                uint8_t *out = dst_row + x * 4;
                 out[0] = pixel[1];
                 out[1] = pixel[2];
                 out[2] = pixel[3];
                 out[3] = pixel[0];
-                break;
             }
-            case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8G8B8A8:
-            case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R8G8B8A8: {
+#endif
+        }
+        break;
+    case NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8G8B8A8:
+    case NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R8G8B8A8:
+        for (y = 0; y < height; y++) {
+            const uint8_t *src_row = src + y * src_stride;
+            uint8_t *dst_row = dst + y * width * 4;
+#ifdef __aarch64__
+            android_neon_shuffle_row_4bpp(src_row, dst_row, width,
+                                          android_neon_r8g8b8a8_to_rgba_perm,
+                                          false);
+#else
+            for (x = 0; x < width; x++) {
                 const uint8_t *pixel = src_row + x * 4;
+                uint8_t *out = dst_row + x * 4;
                 out[0] = pixel[3];
                 out[1] = pixel[2];
                 out[2] = pixel[1];
                 out[3] = pixel[0];
-                break;
             }
-            default:
-                g_assert_not_reached();
-            }
+#endif
         }
+        break;
+    default:
+        g_assert_not_reached();
     }
 }
 
@@ -402,6 +777,9 @@ static void android_surface_rgba8_to_guest(const SurfaceBinding *surface,
         for (y = 0; y < height; y++) {
             const uint8_t *src_row = src + y * src_stride;
             uint8_t *dst_row = dst + y * dst_stride;
+#ifdef __aarch64__
+            android_neon_rgba8_to_x1r5g5b5_row(src_row, dst_row, width);
+#else
             for (x = 0; x < width; x++) {
                 const uint8_t *pixel = src_row + x * 4;
                 uint16_t packed =
@@ -411,13 +789,23 @@ static void android_surface_rgba8_to_guest(const SurfaceBinding *surface,
                     (uint16_t)(pixel[2] >> 3);
                 stw_le_p(dst_row + x * 2, packed);
             }
+#endif
         }
         break;
     case NV097_SET_SURFACE_FORMAT_COLOR_LE_X8R8G8B8_Z8R8G8B8:
     case NV097_SET_SURFACE_FORMAT_COLOR_LE_A8R8G8B8:
+    {
+        bool force_opaque_alpha =
+            (surface->shape.color_format !=
+             NV097_SET_SURFACE_FORMAT_COLOR_LE_A8R8G8B8);
         for (y = 0; y < height; y++) {
             const uint8_t *src_row = src + y * src_stride;
             uint8_t *dst_row = dst + y * dst_stride;
+#ifdef __aarch64__
+            android_neon_shuffle_row_4bpp(src_row, dst_row, width,
+                                          android_neon_bgra_to_rgba_perm,
+                                          force_opaque_alpha);
+#else
             for (x = 0; x < width; x++) {
                 const uint8_t *pixel = src_row + x * 4;
                 uint8_t *out = dst_row + x * 4;
@@ -430,8 +818,10 @@ static void android_surface_rgba8_to_guest(const SurfaceBinding *surface,
                         ? pixel[3]
                         : 0xFF;
             }
+#endif
         }
         break;
+    }
     default:
         g_assert_not_reached();
     }
@@ -1348,20 +1738,36 @@ static void bind_current_surface(NV2AState *d)
     }
 }
 
-static void surface_copy_shrink_row(uint8_t *out, uint8_t *in,
+static void surface_copy_shrink_row(uint8_t *out, const uint8_t *in,
                                     unsigned int width,
                                     unsigned int bytes_per_pixel,
                                     unsigned int factor)
 {
+    if (factor == 1) {
+        memcpy(out, in, width * bytes_per_pixel);
+        return;
+    }
+
+#ifdef __aarch64__
+    if (bytes_per_pixel == 4 &&
+        android_neon_surface_copy_shrink_row_4bpp(out, in, width, factor)) {
+        return;
+    }
+    if (bytes_per_pixel == 2 &&
+        android_neon_surface_copy_shrink_row_2bpp(out, in, width, factor)) {
+        return;
+    }
+#endif
+
     if (bytes_per_pixel == 4) {
         for (unsigned int x = 0; x < width; x++) {
-            *(uint32_t *)out = *(uint32_t *)in;
+            *(uint32_t *)out = *(const uint32_t *)in;
             out += 4;
             in += 4 * factor;
         }
     } else if (bytes_per_pixel == 2) {
         for (unsigned int x = 0; x < width; x++) {
-            *(uint16_t *)out = *(uint16_t *)in;
+            *(uint16_t *)out = *(const uint16_t *)in;
             out += 2;
             in += 2 * factor;
         }
@@ -1491,10 +1897,14 @@ static bool android_surface_download_depth16_to_guest(NV2AState *d,
         const uint8_t *src_row = rgba_linear + y * surface->width * 4;
         uint8_t *dst_row = linear_guest + y * surface->pitch;
 
+#ifdef __aarch64__
+        android_neon_pack_depth16_row_to_guest(src_row, dst_row, surface->width);
+#else
         for (unsigned int x = 0; x < surface->width; x++) {
             const uint8_t *src = src_row + x * 4;
             stw_le_p(dst_row + x * 2, src[0] | (src[1] << 8));
         }
+#endif
     }
 
     if (swizzle) {
@@ -1664,6 +2074,16 @@ static bool android_surface_download_z24s8_to_guest(NV2AState *d,
     for (unsigned int y = 0; y < output_height; y++) {
         uint8_t *dst_row = linear_guest + y * output_pitch;
         const unsigned int src_y = downscale ? y * scale : y;
+
+#ifdef __aarch64__
+        if (!downscale) {
+            android_neon_pack_z24s8_row_to_guest(
+                depth_pixels + src_y * read_width * 4,
+                stencil_pixels + src_y * read_width,
+                dst_row, output_width);
+            continue;
+        }
+#endif
 
         for (unsigned int x = 0; x < output_width; x++) {
             const unsigned int src_x = downscale ? x * scale : x;

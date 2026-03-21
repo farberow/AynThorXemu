@@ -102,6 +102,10 @@ void xb_surface_gl_create_texture(DisplaySurface *surface);
 void xb_surface_gl_update_texture(DisplaySurface *surface, int x, int y, int w, int h);
 void xb_surface_gl_destroy_texture(DisplaySurface *surface);
 
+#ifdef __ANDROID__
+static int64_t android_monotonic_time_ns(void);
+static void android_sleep_until_ns(int64_t deadline_ns);
+#endif
 static void sleep_ns(int64_t ns);
 
 static int sdl2_num_outputs;
@@ -1762,11 +1766,20 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     static int64_t last_update = 0;
 #ifdef __ANDROID__
     const int64_t frame_interval = g_android_frame_interval_ns;
+    const int64_t sleep_threshold = 200000;   // 0.2ms, tuned for Android scheduler jitter
+#elif !defined(_WIN32)
+    const int64_t frame_interval = 16666666;
+    const int64_t sleep_threshold = 2000000;
 #else
     const int64_t frame_interval = 16666666;
+    const int64_t sleep_threshold = 250000;
 #endif
     if (last_update == 0) {
+#ifdef __ANDROID__
+        last_update = android_monotonic_time_ns();
+#else
         last_update = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+#endif
     }
     int64_t deadline = last_update + frame_interval;
 
@@ -1775,23 +1788,28 @@ void sdl2_gl_refresh(DisplayChangeListener *dcl)
     int64_t spin_acc = 0;
 #endif
 
-#ifdef __ANDROID__
-    const int64_t sleep_threshold = 200000;   // 0.2ms — modern Android CFS jitter is <0.1ms
-#elif !defined(_WIN32)
-    const int64_t sleep_threshold = 2000000;
-#else
-    const int64_t sleep_threshold = 250000;
-#endif
-
     while (1) {
+#ifdef __ANDROID__
+        int64_t now = android_monotonic_time_ns();
+#else
         int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+#endif
         int64_t time_remaining = deadline - now;
         if (now < deadline) {
             if (time_remaining > sleep_threshold) {
                 // Try to sleep until the until reaching the sleep threshold.
+#ifdef __ANDROID__
+                android_sleep_until_ns(deadline - sleep_threshold);
+#else
                 sleep_ns(time_remaining - sleep_threshold);
+#endif
 #ifdef DEBUG_XEMU_C
-                sleep_acc += qemu_clock_get_ns(QEMU_CLOCK_REALTIME)-now;
+                sleep_acc +=
+#ifdef __ANDROID__
+                    android_monotonic_time_ns() - now;
+#else
+                    qemu_clock_get_ns(QEMU_CLOCK_REALTIME) - now;
+#endif
 #endif
             } else {
                 // Simply spin to avoid extra delays incurred with swapping to
@@ -1952,8 +1970,6 @@ static void *call_qemu_main(void *opaque)
 static void sleep_ns(int64_t ns)
 {
 #ifdef __ANDROID__
-        /* Use clock_nanosleep with relative time for better precision on Android.
-         * CLOCK_MONOTONIC avoids wall-clock adjustments during sleep. */
         struct timespec sleep_delay;
         sleep_delay.tv_sec = ns / 1000000000LL;
         sleep_delay.tv_nsec = ns % 1000000000LL;
@@ -1967,6 +1983,28 @@ static void sleep_ns(int64_t ns)
         Sleep(ns / SCALE_MS);
 #endif
 }
+
+#ifdef __ANDROID__
+static int64_t android_monotonic_time_ns(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+static void android_sleep_until_ns(int64_t deadline_ns)
+{
+    struct timespec deadline;
+
+    deadline.tv_sec = deadline_ns / 1000000000LL;
+    deadline.tv_nsec = deadline_ns % 1000000000LL;
+
+    while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, NULL) ==
+           EINTR) {
+    }
+}
+#endif
 
 #ifdef _WIN32
 static const wchar_t *get_executable_name(void)
