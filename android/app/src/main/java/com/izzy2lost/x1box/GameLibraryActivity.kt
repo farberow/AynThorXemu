@@ -65,6 +65,7 @@ class GameLibraryActivity : AppCompatActivity() {
   }
 
   private enum class GameContextAction {
+    PER_GAME_SETTINGS,
     SET_CUSTOM_COVER,
     REMOVE_CUSTOM_COVER,
     DELETE_GAME,
@@ -283,7 +284,13 @@ class GameLibraryActivity : AppCompatActivity() {
 
     // MainActivity runs in :xemu, so the disc selection must be flushed before
     // the other process reads SharedPreferences during startup.
-    prefs.edit()
+    val launchEditor = prefs.edit()
+    PerGameSettingsManager.applyRuntimeOverridesToEditor(
+      context = this,
+      editor = launchEditor,
+      relativePath = null,
+    )
+    launchEditor
       .remove("dvdUri")
       .remove("dvdPath")
       .putBoolean("skip_game_picker", false)
@@ -1249,7 +1256,13 @@ class GameLibraryActivity : AppCompatActivity() {
     persistUriPermission(game.uri)
     // MainActivity runs in :xemu, so the disc selection must be flushed before
     // the other process reads SharedPreferences during startup.
-    prefs.edit()
+    val launchEditor = prefs.edit()
+    PerGameSettingsManager.applyRuntimeOverridesToEditor(
+      context = this,
+      editor = launchEditor,
+      relativePath = game.relativePath,
+    )
+    launchEditor
       .putString("dvdUri", game.uri.toString())
       .remove("dvdPath")
       .putBoolean("skip_game_picker", false)
@@ -1689,6 +1702,7 @@ class GameLibraryActivity : AppCompatActivity() {
     if (customCover.exists()) {
       customCover.delete()
     }
+    PerGameSettingsManager.clearOverrides(this, game.relativePath)
     boxArtCache.remove(normalizeCoverKey(game.title))
     boxArtMisses.remove(normalizeCoverKey(game.title))
 
@@ -1699,6 +1713,7 @@ class GameLibraryActivity : AppCompatActivity() {
   private fun showGameContextMenu(game: GameEntry) {
     val hasCustomCover = getCustomCoverFile(game).exists()
     val actions = buildList {
+      add(GameContextAction.PER_GAME_SETTINGS)
       add(GameContextAction.SET_CUSTOM_COVER)
       if (hasCustomCover) {
         add(GameContextAction.REMOVE_CUSTOM_COVER)
@@ -1707,6 +1722,7 @@ class GameLibraryActivity : AppCompatActivity() {
     }
     val options = actions.map { action ->
       when (action) {
+        GameContextAction.PER_GAME_SETTINGS -> getString(R.string.library_per_game_settings_option)
         GameContextAction.SET_CUSTOM_COVER -> getString(R.string.library_custom_cover_set_option)
         GameContextAction.REMOVE_CUSTOM_COVER -> getString(R.string.library_custom_cover_remove_option)
         GameContextAction.DELETE_GAME -> getString(R.string.library_delete_option)
@@ -1730,6 +1746,13 @@ class GameLibraryActivity : AppCompatActivity() {
           setOnClickListener {
             contextDialog.dismiss()
             when (actions[i]) {
+              GameContextAction.PER_GAME_SETTINGS -> {
+                startActivity(
+                  Intent(this@GameLibraryActivity, PerGameSettingsActivity::class.java)
+                    .putExtra(PerGameSettingsActivity.EXTRA_GAME_TITLE, game.title)
+                    .putExtra(PerGameSettingsActivity.EXTRA_GAME_RELATIVE_PATH, game.relativePath)
+                )
+              }
               GameContextAction.SET_CUSTOM_COVER -> {
                 pendingCustomCoverGame = game
                 pickCustomCover.launch("image/*")

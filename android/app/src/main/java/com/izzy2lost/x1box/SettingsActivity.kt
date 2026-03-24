@@ -1534,7 +1534,13 @@ class SettingsActivity : AppCompatActivity() {
   private fun launchInsigniaSetupAssistant(uri: Uri) {
     persistUriPermission(uri)
     switchNetworkEnable.isChecked = true
-    prefs.edit()
+    val launchEditor = prefs.edit()
+    PerGameSettingsManager.applyRuntimeOverridesToEditor(
+      context = this,
+      editor = launchEditor,
+      relativePath = null,
+    )
+    launchEditor
       .putBoolean("setting_network_enable", true)
       .putString("dvdUri", uri.toString())
       .remove("dvdPath")

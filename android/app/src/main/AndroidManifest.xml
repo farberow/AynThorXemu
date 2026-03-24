@@ -61,5 +61,10 @@
       android:screenOrientation="fullSensor"
       android:exported="false" />
 
+    <activity
+      android:name=".PerGameSettingsActivity"
+      android:screenOrientation="fullSensor"
+      android:exported="false" />
+
   </application>
 </manifest>

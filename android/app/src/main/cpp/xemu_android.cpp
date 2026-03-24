@@ -39,6 +39,7 @@ extern "C" AddfdInfo* monitor_fdset_add_fd(int fd, bool has_fdset_id,
 namespace {
 constexpr const char* kLogTag = "xemu-android";
 constexpr const char* kPrefsName = "x1box_prefs";
+constexpr const char* kRuntimeOverridePrefPrefix = "runtime_override_";
 constexpr const char* kDebugLogPrefKey = "setting_debug_logs_enabled";
 constexpr const char* kHrtfPrefKey = "setting_hrtf";
 constexpr const char* kHrtfDefaultOffMigrationPrefKey =
@@ -56,6 +57,12 @@ static jobject GetActivity(JNIEnv* env);
 static bool HasException(JNIEnv* env, const char* context);
 static std::string GetFilesDirPath(JNIEnv* env, jobject activity);
 static std::string GetPrefString(JNIEnv* env, jobject activity, const char* key);
+static std::string GetEffectivePrefString(JNIEnv* env, jobject activity,
+                                          const char* key);
+static bool GetEffectivePrefBool(JNIEnv* env, jobject activity, const char* key,
+                                 bool defValue);
+static int GetEffectivePrefInt(JNIEnv* env, jobject activity, const char* key,
+                               int defValue);
 static void ConfigureNativeDebugLogging(JNIEnv* env, jobject activity);
 static void ApplyHrtfDefaultOffMigration(JNIEnv* env, jobject activity);
 static bool NativeDebugLoggingEnabled();
@@ -348,7 +355,8 @@ static std::string ResolveAndroidOrientationHint(JNIEnv* env, jobject activity) 
     return kDefaultOrientationHint;
   }
 
-  std::string value = ToLowerAscii(GetPrefString(env, activity, "setting_game_orientation"));
+  std::string value =
+      ToLowerAscii(GetEffectivePrefString(env, activity, "setting_game_orientation"));
   if (value == "landscape") {
     return "LandscapeLeft";
   }
@@ -727,6 +735,74 @@ static int GetPrefInt(JNIEnv* env, jobject activity, const char* key, int defVal
   }
   env->DeleteLocalRef(prefs);
   return out;
+}
+
+static std::string BuildRuntimeOverrideKey(const char* key) {
+  if (!key || key[0] == '\0') {
+    return {};
+  }
+  return std::string(kRuntimeOverridePrefPrefix) + key;
+}
+
+static bool ParseOverrideBool(const std::string& value, bool* out) {
+  if (!out) {
+    return false;
+  }
+  const std::string normalized = ToLowerAscii(value);
+  if (normalized == "true" || normalized == "1") {
+    *out = true;
+    return true;
+  }
+  if (normalized == "false" || normalized == "0") {
+    *out = false;
+    return true;
+  }
+  return false;
+}
+
+static std::string GetEffectivePrefString(JNIEnv* env, jobject activity,
+                                          const char* key) {
+  const std::string runtimeKey = BuildRuntimeOverrideKey(key);
+  if (!runtimeKey.empty()) {
+    const std::string overrideValue =
+        GetPrefString(env, activity, runtimeKey.c_str());
+    if (!overrideValue.empty()) {
+      return overrideValue;
+    }
+  }
+  return GetPrefString(env, activity, key);
+}
+
+static bool GetEffectivePrefBool(JNIEnv* env, jobject activity, const char* key,
+                                 bool defValue) {
+  const std::string runtimeKey = BuildRuntimeOverrideKey(key);
+  if (!runtimeKey.empty()) {
+    const std::string overrideValue =
+        GetPrefString(env, activity, runtimeKey.c_str());
+    bool parsed = false;
+    if (ParseOverrideBool(overrideValue, &parsed)) {
+      return parsed;
+    }
+  }
+  return GetPrefBool(env, activity, key, defValue);
+}
+
+static int GetEffectivePrefInt(JNIEnv* env, jobject activity, const char* key,
+                               int defValue) {
+  const std::string runtimeKey = BuildRuntimeOverrideKey(key);
+  if (!runtimeKey.empty()) {
+    const std::string overrideValue =
+        GetPrefString(env, activity, runtimeKey.c_str());
+    if (!overrideValue.empty()) {
+      char* end = nullptr;
+      const long parsed = std::strtol(overrideValue.c_str(), &end, 10);
+      if (end != overrideValue.c_str() && end && *end == '\0' &&
+          parsed >= INT_MIN && parsed <= INT_MAX) {
+        return static_cast<int>(parsed);
+      }
+    }
+  }
+  return GetPrefInt(env, activity, key, defValue);
 }
 
 static void ConfigureNativeDebugLogging(JNIEnv* env, jobject activity) {
@@ -1273,29 +1349,36 @@ static SetupFiles SyncSetupFiles() {
   }
 
   EmulatorSettings emuSettings;
-  emuSettings.surface_scale  = GetPrefInt(env, activity, "setting_surface_scale", 1);
+  emuSettings.surface_scale =
+      GetEffectivePrefInt(env, activity, "setting_surface_scale", 1);
   emuSettings.system_memory_mib =
-      GetPrefInt(env, activity, "setting_system_memory_mib", 64);
+      GetEffectivePrefInt(env, activity, "setting_system_memory_mib", 64);
   if (emuSettings.system_memory_mib != 64 &&
       emuSettings.system_memory_mib != 128) {
     emuSettings.system_memory_mib = 64;
   }
-  emuSettings.use_dsp        = GetPrefBool(env, activity, "setting_use_dsp", false);
-  emuSettings.hrtf           = GetPrefBool(env, activity, kHrtfPrefKey, false);
-  emuSettings.cache_shaders  = GetPrefBool(env, activity, "setting_cache_shaders", true);
-  emuSettings.hard_fpu       = GetPrefBool(env, activity, "setting_hard_fpu", true);
+  emuSettings.use_dsp =
+      GetEffectivePrefBool(env, activity, "setting_use_dsp", false);
+  emuSettings.hrtf =
+      GetEffectivePrefBool(env, activity, kHrtfPrefKey, false);
+  emuSettings.cache_shaders =
+      GetEffectivePrefBool(env, activity, "setting_cache_shaders", true);
+  emuSettings.hard_fpu =
+      GetEffectivePrefBool(env, activity, "setting_hard_fpu", true);
   emuSettings.skip_boot_anim =
-      GetPrefBool(env, activity, "setting_skip_boot_anim", false);
+      GetEffectivePrefBool(env, activity, "setting_skip_boot_anim", false);
   emuSettings.network_enabled =
-      GetPrefBool(env, activity, "setting_network_enable", false);
+      GetEffectivePrefBool(env, activity, "setting_network_enable", false);
   {
-    std::string tcgThread = GetPrefString(env, activity, "setting_tcg_thread");
+    std::string tcgThread =
+        GetEffectivePrefString(env, activity, "setting_tcg_thread");
     if (tcgThread == "single") {
       emuSettings.tcg_thread = "single";
     }
   }
   {
-    std::string rendererPref = GetPrefString(env, activity, "setting_renderer");
+    std::string rendererPref =
+        GetEffectivePrefString(env, activity, "setting_renderer");
     if (rendererPref == "vulkan") {
       emuSettings.renderer = "vulkan";
     } else if (rendererPref == "opengl") {
@@ -1303,13 +1386,16 @@ static SetupFiles SyncSetupFiles() {
     }
   }
   {
-    std::string filteringPref = GetPrefString(env, activity, "setting_filtering");
+    std::string filteringPref =
+        GetEffectivePrefString(env, activity, "setting_filtering");
     if (filteringPref == "nearest") {
       emuSettings.filtering = "nearest";
     }
   }
-  emuSettings.vsync = GetPrefBool(env, activity, "setting_vsync", false);
-  out.audio_driver = GetPrefString(env, activity, "setting_audio_driver");
+  emuSettings.vsync =
+      GetEffectivePrefBool(env, activity, "setting_vsync", false);
+  out.audio_driver =
+      GetEffectivePrefString(env, activity, "setting_audio_driver");
   {
     std::string normalized = ToLowerAscii(out.audio_driver);
     if (normalized == "android" || normalized == "audiotrack") {
@@ -1317,7 +1403,7 @@ static SetupFiles SyncSetupFiles() {
     }
   }
 
-  int displayMode = GetPrefInt(env, activity, "setting_display_mode", 0);
+  int displayMode = GetEffectivePrefInt(env, activity, "setting_display_mode", 0);
   xemu_android_set_display_mode_setting(displayMode);
 
   unsetenv("XEMU_VULKAN_DRIVER");

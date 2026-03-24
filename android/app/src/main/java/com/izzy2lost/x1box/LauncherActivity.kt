@@ -96,21 +96,24 @@ class LauncherActivity : Activity() {
       }
       // MainActivity runs in :xemu, so launch data must be flushed before
       // handing off to the emulator process.
-      prefs.edit()
-        .putBoolean("skip_game_picker", false)
-        .apply {
-          when {
-            frontendLaunch.dvdUri != null -> {
-              putString("dvdUri", frontendLaunch.dvdUri.toString())
-              remove("dvdPath")
-            }
-            frontendLaunch.dvdPath != null -> {
-              putString("dvdPath", frontendLaunch.dvdPath)
-              remove("dvdUri")
-            }
-          }
+      val launchEditor = prefs.edit()
+      launchEditor.putBoolean("skip_game_picker", false)
+      PerGameSettingsManager.applyRuntimeOverridesToEditor(
+        context = this,
+        editor = launchEditor,
+        relativePath = frontendLaunch.relativePath,
+      )
+      when {
+        frontendLaunch.dvdUri != null -> {
+          launchEditor.putString("dvdUri", frontendLaunch.dvdUri.toString())
+          launchEditor.remove("dvdPath")
         }
-        .commit()
+        frontendLaunch.dvdPath != null -> {
+          launchEditor.putString("dvdPath", frontendLaunch.dvdPath)
+          launchEditor.remove("dvdUri")
+        }
+      }
+      launchEditor.commit()
 
       if (hasMcpx && hasFlash && hasHdd) {
         DebugLog.i(TAG) { "Frontend launch resolved via ${frontendLaunch.source}" }

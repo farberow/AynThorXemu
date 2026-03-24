@@ -13,7 +13,13 @@ object FrontendLaunchHelper {
   data class LaunchTarget(
     val dvdUri: Uri? = null,
     val dvdPath: String? = null,
+    val relativePath: String? = null,
     val source: String
+  )
+
+  private data class TreeMatch(
+    val uri: Uri,
+    val relativePath: String,
   )
 
   private val stringExtraKeys = listOf(
@@ -151,7 +157,11 @@ object FrontendLaunchHelper {
 
     val treeMatch = resolvePathAgainstGamesFolder(context, gamesFolderUri, path)
     if (treeMatch != null) {
-      return LaunchTarget(dvdUri = treeMatch, source = label)
+      return LaunchTarget(
+        dvdUri = treeMatch.uri,
+        relativePath = treeMatch.relativePath,
+        source = label,
+      )
     }
 
     return null
@@ -161,7 +171,7 @@ object FrontendLaunchHelper {
     context: Context,
     gamesFolderUri: Uri?,
     rawPath: String
-  ): Uri? {
+  ): TreeMatch? {
     val treeUri = gamesFolderUri ?: return null
     val treeRootPath = treeUriToFilesystemPath(treeUri) ?: return null
     val normalizedTree = normalizeFilesystemPath(treeRootPath)
@@ -175,7 +185,9 @@ object FrontendLaunchHelper {
 
     var node = DocumentFile.fromTreeUri(context, treeUri) ?: return null
     if (relativePath.isEmpty()) {
-      return node.takeIf { it.isFile }?.uri
+      return node.takeIf { it.isFile }?.let { file ->
+        TreeMatch(uri = file.uri, relativePath = "")
+      }
     }
 
     for (segment in relativePath.split('/')) {
@@ -184,7 +196,9 @@ object FrontendLaunchHelper {
       }
       node = node.findFile(segment) ?: return null
     }
-    return node.takeIf { it.isFile }?.uri
+    return node.takeIf { it.isFile }?.let { file ->
+      TreeMatch(uri = file.uri, relativePath = relativePath)
+    }
   }
 
   private fun treeUriToFilesystemPath(treeUri: Uri): String? {

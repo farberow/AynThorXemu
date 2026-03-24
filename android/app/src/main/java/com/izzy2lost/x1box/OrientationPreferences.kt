@@ -58,7 +58,11 @@ object OrientationPreferences {
   }
 
   fun getGameOrientation(context: Context): GameOrientation {
-    return GameOrientation.fromPrefValue(sharedPreferences(context).getString(PREF_GAME_ORIENTATION, null))
+    val prefs = sharedPreferences(context)
+    val runtimeOverride = PerGameSettingsManager.getRuntimeOverride(context, PREF_GAME_ORIENTATION)
+    return GameOrientation.fromPrefValue(
+      runtimeOverride ?: prefs.getString(PREF_GAME_ORIENTATION, null)
+    )
   }
 
   fun getUiRequestedOrientation(context: Context): Int {

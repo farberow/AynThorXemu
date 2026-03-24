@@ -345,4 +345,17 @@
   <string name="library_custom_cover_set">Custom cover saved</string>
   <string name="library_custom_cover_removed">Custom cover removed</string>
   <string name="library_custom_cover_failed">Failed to save custom cover</string>
+  <string name="library_per_game_settings_option">Per-Game Settings</string>
+
+  <string name="per_game_settings_title">Per-Game Settings</string>
+  <string name="per_game_settings_intro">Choose only the settings this game should override. Leave a field on Use Global to keep the normal app setting.</string>
+  <string name="per_game_settings_use_global">Use Global</string>
+  <string name="per_game_settings_global_value">Global default: %1$s</string>
+  <string name="per_game_settings_enabled">Enabled</string>
+  <string name="per_game_settings_disabled">Disabled</string>
+  <string name="per_game_settings_save">Save Overrides</string>
+  <string name="per_game_settings_clear">Clear Overrides</string>
+  <string name="per_game_settings_saved">Per-game settings saved</string>
+  <string name="per_game_settings_cleared">Per-game settings cleared</string>
+  <string name="per_game_settings_missing_game">This game could not be resolved.</string>
 </resources>
