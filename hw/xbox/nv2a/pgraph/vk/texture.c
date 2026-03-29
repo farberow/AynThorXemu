@@ -1162,9 +1162,29 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
     }
 
     if (!surface_to_texture && !possibly_dirty_checked) {
-        possibly_dirty |= check_texture_possibly_dirty(
-            d, texture_vram_offset, texture_length, texture_palette_vram_offset,
-            texture_palette_data_size);
+        bool skip_dirty_check = binding_found &&
+            snode->dirty_check_frame == pg->frame_time &&
+            !snode->dirty_check_result;
+        if (!skip_dirty_check) {
+            bool vram_dirty = check_texture_possibly_dirty(
+                d, texture_vram_offset, texture_length,
+                texture_palette_vram_offset, texture_palette_data_size);
+            possibly_dirty |= vram_dirty;
+            if (binding_found) {
+                snode->dirty_check_frame = pg->frame_time;
+                snode->dirty_check_result = vram_dirty;
+            }
+        }
+    }
+
+    if (binding_found && possibly_dirty && !surface_to_texture) {
+        bool vram_confirmed_clean =
+            snode->dirty_check_frame == pg->frame_time &&
+            !snode->dirty_check_result;
+        if (vram_confirmed_clean) {
+            snode->possibly_dirty = false;
+            possibly_dirty = false;
+        }
     }
 
     // Calculate hash of texture data, if necessary
@@ -1429,6 +1449,24 @@ void pgraph_vk_bind_textures(NV2AState *d)
     }
 
     for (int i = 0; i < NV2A_MAX_TEXTURES; i++) {
+        TextureBinding *binding = r->texture_bindings[i];
+
+        if (!binding || binding == &r->dummy_texture || !binding->possibly_dirty
+            || binding->dirty_check_frame == pg->frame_time) {
+            continue;
+        }
+
+        bool vram_dirty = check_texture_possibly_dirty(
+            d, binding->key.texture_vram_offset, binding->key.texture_length,
+            binding->key.palette_vram_offset, binding->key.palette_length);
+        binding->dirty_check_frame = pg->frame_time;
+        binding->dirty_check_result = vram_dirty;
+        if (!vram_dirty) {
+            binding->possibly_dirty = false;
+        }
+    }
+
+    for (int i = 0; i < NV2A_MAX_TEXTURES; i++) {
         if (!pgraph_is_texture_enabled(pg, i)) {
             r->texture_bindings[i] = &r->dummy_texture;
             continue;
@@ -1452,6 +1490,9 @@ static void texture_cache_entry_init(Lru *lru, LruNode *node, const void *state)
     snode->allocation = VK_NULL_HANDLE;
     snode->image_view = VK_NULL_HANDLE;
     snode->sampler = VK_NULL_HANDLE;
+    snode->submit_time = 0;
+    snode->dirty_check_frame = 0;
+    snode->dirty_check_result = false;
 }
 
 static void texture_cache_release_node_resources(PGRAPHVkState *r, TextureBinding *snode)

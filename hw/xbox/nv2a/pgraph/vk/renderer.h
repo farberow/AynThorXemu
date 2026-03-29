@@ -130,6 +130,8 @@ typedef struct SurfaceBinding {
     bool draw_dirty;
     bool download_pending;
     bool upload_pending;
+    uint32_t draw_generation;
+    uint32_t download_generation;
 
     BasicSurfaceFormatInfo fmt;
     SurfaceFormatInfo host_fmt;
@@ -222,6 +224,8 @@ typedef struct TextureBinding {
     uint64_t hash;
     unsigned int draw_time;
     uint32_t submit_time;
+    unsigned int dirty_check_frame;
+    bool dirty_check_result;
 } TextureBinding;
 
 typedef struct QueryReport {

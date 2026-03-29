@@ -478,6 +478,11 @@ static void download_surface(NV2AState *d, SurfaceBinding *surface, bool force)
         return;
     }
 
+    if (!surface->draw_dirty &&
+        surface->download_generation == surface->draw_generation) {
+        return;
+    }
+
     // FIXME: Respect write enable at last TOU?
 
     download_surface_to_buffer(d, surface, d->vram_ptr + surface->vram_addr);
@@ -491,6 +496,7 @@ static void download_surface(NV2AState *d, SurfaceBinding *surface, bool force)
 
     surface->download_pending = false;
     surface->draw_dirty = false;
+    surface->download_generation = surface->draw_generation;
 }
 
 void pgraph_vk_wait_for_surface_download(SurfaceBinding *surface)
@@ -1375,6 +1381,8 @@ static void populate_surface_binding_target_sized(NV2AState *d, bool color,
     target->upload_pending = true;
     target->download_pending = false;
     target->draw_dirty = false;
+    target->draw_generation = 0;
+    target->download_generation = 0;
     target->dma_addr = dma.address;
     target->dma_len = dma.limit;
     target->frame_time = pg->frame_time;
