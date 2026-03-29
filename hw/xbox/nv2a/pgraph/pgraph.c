@@ -2489,8 +2489,10 @@ DEF_METHOD_INC(NV097, SET_TEXCOORD3_2F)
     do {                                                                   \
         VertexAttribute *attribute = &pg->vertex_attributes[(attr_index)]; \
         pgraph_allocate_inline_buffer_vertices(pg, (attr_index));          \
-        pgraph_argb_pack32_to_rgba_float(parameter,                       \
-                                         attribute->inline_value);         \
+        attribute->inline_value[0] = (parameter & 0xFF) / 255.0f;          \
+        attribute->inline_value[1] = ((parameter >> 8) & 0xFF) / 255.0f;   \
+        attribute->inline_value[2] = ((parameter >> 16) & 0xFF) / 255.0f;  \
+        attribute->inline_value[3] = ((parameter >> 24) & 0xFF) / 255.0f;  \
     } while (0)
 
 DEF_METHOD_INC(NV097, SET_DIFFUSE_COLOR4UB)
@@ -2917,14 +2919,10 @@ DEF_METHOD_INC(NV097, SET_VERTEX_DATA4UB)
     int slot = (method - NV097_SET_VERTEX_DATA4UB) / 4;
     VertexAttribute *attribute = &pg->vertex_attributes[slot];
     pgraph_allocate_inline_buffer_vertices(pg, slot);
-    if (slot == NV2A_VERTEX_ATTR_DIFFUSE || slot == NV2A_VERTEX_ATTR_SPECULAR) {
-        pgraph_argb_pack32_to_rgba_float(parameter, attribute->inline_value);
-    } else {
-        attribute->inline_value[0] = (parameter & 0xFF) / 255.0;
-        attribute->inline_value[1] = ((parameter >> 8) & 0xFF) / 255.0;
-        attribute->inline_value[2] = ((parameter >> 16) & 0xFF) / 255.0;
-        attribute->inline_value[3] = ((parameter >> 24) & 0xFF) / 255.0;
-    }
+    attribute->inline_value[0] = (parameter & 0xFF) / 255.0;
+    attribute->inline_value[1] = ((parameter >> 8) & 0xFF) / 255.0;
+    attribute->inline_value[2] = ((parameter >> 16) & 0xFF) / 255.0;
+    attribute->inline_value[3] = ((parameter >> 24) & 0xFF) / 255.0;
     if (slot == 0) {
         pgraph_finish_inline_buffer_vertex(pg);
     }

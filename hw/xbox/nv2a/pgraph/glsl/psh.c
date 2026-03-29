@@ -179,10 +179,19 @@ void pgraph_glsl_set_psh_state(PGRAPHState *pg, PshState *state)
             }
         }
 
-        /* Keep track of textures that are uploaded as signed normalized data.
-         * Those must not be remapped a second time in the fragment shader. */
-        state->snorm_tex[i] =
-            color_format == NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R6G5B5;
+        /* Keep track of whether texture data has been loaded as signed
+         * normalized integers or not. This dictates whether or not we will need
+         * to re-map in fragment shader for certain texture modes (e.g.
+         * bumpenvmap).
+         *
+         * FIXME: When signed texture data is loaded as unsigned and remapped in
+         * fragment shader, there may be interpolation artifacts. Fix this to
+         * support signed textures more appropriately.
+         */
+#if 0 // FIXME
+        psh->snorm_tex[i] = (f.gl_internal_format == GL_RGB8_SNORM)
+                                 || (f.gl_internal_format == GL_RG8_SNORM);
+#endif
         state->shadow_map[i] = f.depth;
 
         uint32_t filter = pgraph_reg_r(pg, NV_PGRAPH_TEXFILTER0 + i * 4);
