@@ -364,6 +364,7 @@ typedef struct PGRAPHVkState {
     PipelineBinding *pipeline_cache_entries;
     PipelineBinding *pipeline_binding;
     bool pipeline_binding_changed;
+    int64_t pipeline_cache_last_save_us;
 
     VkDescriptorPool descriptor_pool;
     VkDescriptorSetLayout descriptor_set_layout;
