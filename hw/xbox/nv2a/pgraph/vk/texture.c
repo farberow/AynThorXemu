@@ -1274,6 +1274,16 @@ static bool color_surface_can_direct_bind(const SurfaceBinding *surface,
            surface->host_fmt.vk_format == tex_vkf.vk_format;
 }
 
+static bool surface_can_direct_bind(const SurfaceBinding *surface,
+                                    const TextureBinding *texture)
+{
+    if (surface->color) {
+        return color_surface_can_direct_bind(surface, texture);
+    }
+
+    return !(surface->host_fmt.aspect & VK_IMAGE_ASPECT_STENCIL_BIT);
+}
+
 static VkImageView get_surface_direct_texture_view(PGRAPHVkState *r,
                                                    SurfaceBinding *surface,
                                                    TextureBinding *texture)
@@ -1773,9 +1783,7 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
 
     if (binding_found) {
         if (surface_to_texture) {
-            bool can_direct_bind =
-                color_surface_can_direct_bind(surface, snode) ||
-                !(surface->host_fmt.aspect & VK_IMAGE_ASPECT_STENCIL_BIT);
+            bool can_direct_bind = surface_can_direct_bind(surface, snode);
             if (can_direct_bind) {
                 VkImageLayout direct_layout;
                 if (surface->color) {
@@ -2008,9 +2016,7 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
     r->texture_bindings[texture_idx] = snode;
 
     if (surface_to_texture) {
-        bool can_direct_bind =
-            color_surface_can_direct_bind(surface, snode) ||
-            !(surface->host_fmt.aspect & VK_IMAGE_ASPECT_STENCIL_BIT);
+        bool can_direct_bind = surface_can_direct_bind(surface, snode);
         if (can_direct_bind) {
             VkImageLayout direct_layout;
             if (surface->color) {
