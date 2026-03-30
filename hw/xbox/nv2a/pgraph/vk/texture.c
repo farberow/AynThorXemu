@@ -738,8 +738,9 @@ static void copy_zeta_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surfac
 
         pgraph_vk_transition_image_layout(
             pg, cmd, surface->image, surface->host_fmt.vk_format,
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            surface->image_layout,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        surface->image_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         vkCmdCopyImageToBuffer(cmd, surface->image,
                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -765,6 +766,7 @@ static void copy_zeta_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surfac
         vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, NULL,
                              0, NULL, 1, &depth_read_barrier);
+        surface->image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
         VkImageViewCreateInfo depth_view_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -852,6 +854,7 @@ static void copy_zeta_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surfac
             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
                 VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
             0, 0, NULL, 0, NULL, 1, &depth_restore_barrier);
+        surface->image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         vkDestroyImageView(r->device, depth_view, NULL);
         texture_source_buffer = r->storage_buffers[BUFFER_COMPUTE_SRC].buffer;
@@ -898,8 +901,9 @@ static void copy_zeta_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surfac
 
         pgraph_vk_transition_image_layout(
             pg, cmd, surface->image, surface->host_fmt.vk_format,
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            surface->image_layout,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        surface->image_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         vkCmdCopyImageToBuffer(cmd, surface->image,
                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -910,6 +914,7 @@ static void copy_zeta_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surfac
             pg, cmd, surface->image, surface->host_fmt.vk_format,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+        surface->image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         size_t packed_image_size = scaled_width * scaled_height * 4;
 
@@ -1098,6 +1103,46 @@ static void bind_surface_as_texture(PGRAPHState *pg, SurfaceBinding *surface,
     texture->draw_time = surface->draw_time;
 }
 
+static void bind_zeta_surface_as_texture(PGRAPHState *pg, SurfaceBinding *surface,
+                                         TextureBinding *texture)
+{
+    assert(!surface->color);
+    assert(!(surface->host_fmt.aspect & VK_IMAGE_ASPECT_STENCIL_BIT));
+
+    nv2a_profile_inc_counter(NV2A_PROF_SURF_TO_TEX);
+
+    if (surface->image_layout != VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) {
+        VkCommandBuffer cmd = pgraph_vk_begin_nondraw_commands(pg);
+
+        VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .oldLayout = surface->image_layout,
+            .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = surface->image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        };
+        vkCmdPipelineBarrier(
+            cmd, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0, 0, NULL, 0, NULL, 1, &barrier);
+
+        pgraph_vk_end_nondraw_commands(pg, cmd);
+        surface->image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    }
+
+    texture->draw_time = surface->draw_time;
+}
+
 static void copy_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surface,
                                     TextureBinding *texture)
 {
@@ -1120,9 +1165,9 @@ static void copy_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surface,
 
     pgraph_vk_transition_image_layout(
         pg, cmd, surface->image, surface->host_fmt.vk_format,
-        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
-                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        surface->image_layout,
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    surface->image_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
     pgraph_vk_transition_image_layout(pg, cmd, texture->image, vkf.vk_format,
                                       texture->current_layout,
@@ -1149,6 +1194,9 @@ static void copy_surface_to_texture(PGRAPHState *pg, SurfaceBinding *surface,
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         surface->color ? VK_IMAGE_LAYOUT_GENERAL :
                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    surface->image_layout =
+        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
+                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     pgraph_vk_transition_image_layout(pg, cmd, texture->image, vkf.vk_format,
                                       texture->current_layout,
@@ -1413,6 +1461,8 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
     bool surface_to_texture = false;
     r->tex_surface_direct[texture_idx] = false;
     r->tex_surface_direct_views[texture_idx] = VK_NULL_HANDLE;
+    r->tex_surface_direct_layout[texture_idx] =
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     // Check active surfaces to see if this texture was a render target
     SurfaceBinding *surface = pgraph_vk_surface_get(d, texture_vram_offset);
@@ -1511,12 +1561,28 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
 
     if (binding_found) {
         if (surface_to_texture) {
-            if (surface->color) {
-                if (surface->draw_time != snode->draw_time) {
-                    bind_surface_as_texture(pg, surface, snode);
+            bool can_direct_bind =
+                surface->color ||
+                !(surface->host_fmt.aspect & VK_IMAGE_ASPECT_STENCIL_BIT);
+            if (can_direct_bind) {
+                VkImageLayout direct_layout;
+                if (surface->color) {
+                    if (surface->draw_time != snode->draw_time) {
+                        bind_surface_as_texture(pg, surface, snode);
+                    }
+                    direct_layout = VK_IMAGE_LAYOUT_GENERAL;
+                } else {
+                    if (surface->draw_time != snode->draw_time ||
+                        surface->image_layout !=
+                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) {
+                        bind_zeta_surface_as_texture(pg, surface, snode);
+                    }
+                    direct_layout =
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
                 }
                 r->tex_surface_direct[texture_idx] = true;
                 r->tex_surface_direct_views[texture_idx] = surface->image_view;
+                r->tex_surface_direct_layout[texture_idx] = direct_layout;
             } else if (surface->draw_time != snode->draw_time) {
                 copy_surface_to_texture(pg, surface, snode);
             }
@@ -1734,10 +1800,21 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
     r->texture_bindings[texture_idx] = snode;
 
     if (surface_to_texture) {
-        if (surface->color) {
-            bind_surface_as_texture(pg, surface, snode);
+        bool can_direct_bind =
+            surface->color ||
+            !(surface->host_fmt.aspect & VK_IMAGE_ASPECT_STENCIL_BIT);
+        if (can_direct_bind) {
+            VkImageLayout direct_layout;
+            if (surface->color) {
+                bind_surface_as_texture(pg, surface, snode);
+                direct_layout = VK_IMAGE_LAYOUT_GENERAL;
+            } else {
+                bind_zeta_surface_as_texture(pg, surface, snode);
+                direct_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            }
             r->tex_surface_direct[texture_idx] = true;
             r->tex_surface_direct_views[texture_idx] = surface->image_view;
+            r->tex_surface_direct_layout[texture_idx] = direct_layout;
         } else {
             copy_surface_to_texture(pg, surface, snode);
         }
@@ -1820,6 +1897,8 @@ void pgraph_vk_bind_textures(NV2AState *d)
             }
             r->tex_surface_direct[i] = false;
             r->tex_surface_direct_views[i] = VK_NULL_HANDLE;
+            r->tex_surface_direct_layout[i] =
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             pg->texture_dirty[i] = false;
             continue;
         }
@@ -1834,12 +1913,14 @@ void pgraph_vk_bind_textures(NV2AState *d)
         TextureBinding *prev_binding = r->texture_bindings[i];
         bool prev_direct = r->tex_surface_direct[i];
         VkImageView prev_direct_view = r->tex_surface_direct_views[i];
+        VkImageLayout prev_direct_layout = r->tex_surface_direct_layout[i];
         create_texture(pg, i);
 
         pg->texture_dirty[i] = false; // FIXME: Move to renderer?
         if (r->texture_bindings[i] != prev_binding ||
             r->tex_surface_direct[i] != prev_direct ||
-            r->tex_surface_direct_views[i] != prev_direct_view) {
+            r->tex_surface_direct_views[i] != prev_direct_view ||
+            r->tex_surface_direct_layout[i] != prev_direct_layout) {
             r->texture_bindings_changed = true;
         }
     }
@@ -1976,6 +2057,8 @@ void pgraph_vk_finalize_textures(PGRAPHState *pg)
         r->texture_bindings[i] = NULL;
         r->tex_surface_direct[i] = false;
         r->tex_surface_direct_views[i] = VK_NULL_HANDLE;
+        r->tex_surface_direct_layout[i] =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
     destroy_dummy_texture(r);

@@ -217,7 +217,7 @@ void pgraph_vk_update_descriptor_sets(PGRAPHState *pg)
     for (int i = 0; i < NV2A_MAX_TEXTURES; i++) {
         image_infos[i] = (VkDescriptorImageInfo){
             .imageLayout = r->tex_surface_direct[i]
-                ? VK_IMAGE_LAYOUT_GENERAL
+                ? r->tex_surface_direct_layout[i]
                 : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .imageView = r->tex_surface_direct[i]
                 ? r->tex_surface_direct_views[i]
