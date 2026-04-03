@@ -136,6 +136,7 @@ typedef struct SurfaceBinding {
 
     VkImage image;
     VkImageView image_view;
+    VkImageLayout image_layout;
     VmaAllocation allocation;
 
     // Used for scaling
@@ -402,6 +403,7 @@ typedef struct PGRAPHVkState {
     TextureBinding *texture_bindings[NV2A_MAX_TEXTURES];
     bool tex_surface_direct[NV2A_MAX_TEXTURES];
     VkImageView tex_surface_direct_views[NV2A_MAX_TEXTURES];
+    VkImageLayout tex_surface_direct_layout[NV2A_MAX_TEXTURES];
     TextureBinding dummy_texture;
     bool texture_bindings_changed;
     VkFormatProperties *texture_format_properties;

@@ -207,9 +207,9 @@ static void download_surface_to_buffer(NV2AState *d, SurfaceBinding *surface,
 
     pgraph_vk_transition_image_layout(
         pg, cmd, surface->image, surface->host_fmt.vk_format,
-        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
-                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        surface->image_layout,
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    surface->image_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
     int num_copy_regions = 1;
     VkBufferImageCopy copy_regions[2];
@@ -319,6 +319,9 @@ static void download_surface_to_buffer(NV2AState *d, SurfaceBinding *surface,
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         surface->color ? VK_IMAGE_LAYOUT_GENERAL :
                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    surface->image_layout =
+        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
+                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     // FIXME: Verify output of depth stencil conversion
     // FIXME: Track current layout and only transition when required
@@ -889,6 +892,9 @@ static void create_surface_image(PGRAPHState *pg, SurfaceBinding *surface)
         VK_IMAGE_LAYOUT_UNDEFINED,
         surface->color ? VK_IMAGE_LAYOUT_GENERAL :
                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    surface->image_layout =
+        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
+                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     nv2a_profile_inc_counter(NV2A_PROF_QUEUE_SUBMIT_3);
     pgraph_vk_end_debug_marker(r, cmd);
@@ -900,6 +906,7 @@ static void migrate_surface_image(SurfaceBinding *dst, SurfaceBinding *src)
 {
     dst->image = src->image;
     dst->image_view = src->image_view;
+    dst->image_layout = src->image_layout;
     dst->allocation = src->allocation;
     dst->image_scratch = src->image_scratch;
     dst->image_scratch_current_layout = src->image_scratch_current_layout;
@@ -907,6 +914,7 @@ static void migrate_surface_image(SurfaceBinding *dst, SurfaceBinding *src)
 
     src->image = VK_NULL_HANDLE;
     src->image_view = VK_NULL_HANDLE;
+    src->image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     src->allocation = VK_NULL_HANDLE;
     src->image_scratch = VK_NULL_HANDLE;
     src->image_scratch_current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1286,9 +1294,9 @@ void pgraph_vk_upload_surface_data(NV2AState *d, SurfaceBinding *surface,
 
     pgraph_vk_transition_image_layout(
         pg, cmd, surface->image, surface->host_fmt.vk_format,
-        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
-                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        surface->image_layout,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    surface->image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
     bool upscale = pg->surface_scale_factor > 1 &&
                    !use_compute_to_convert_depth_stencil_format;
@@ -1341,6 +1349,9 @@ void pgraph_vk_upload_surface_data(NV2AState *d, SurfaceBinding *surface,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         surface->color ? VK_IMAGE_LAYOUT_GENERAL :
                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    surface->image_layout =
+        surface->color ? VK_IMAGE_LAYOUT_GENERAL :
+                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     nv2a_profile_inc_counter(NV2A_PROF_QUEUE_SUBMIT_2);
     pgraph_vk_end_debug_marker(r, cmd);
@@ -1443,6 +1454,7 @@ static void populate_surface_binding_target_sized(NV2AState *d, bool color,
     target->frame_time = pg->frame_time;
     target->draw_time = pg->draw_time;
     target->cleared = false;
+    target->image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     target->initialized = false;
 }
