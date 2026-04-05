@@ -149,11 +149,7 @@ LruNode *lru_try_evict_one(Lru *lru)
 static inline
 LruNode *lru_evict_one(Lru *lru)
 {
-	LruNode *found = lru_try_evict_one(lru);
-
-	assert(found != NULL); /* No evictable node! */
-
-	return found;
+	return lru_try_evict_one(lru);
 }
 
 static inline
@@ -199,9 +195,19 @@ LruNode *lru_lookup(Lru *lru, uint64_t hash, const void *key)
     }
 
 	if (found) {
-		QTAILQ_REMOVE(&lru->bins[bin], found, next_bin);
+		if (QTAILQ_FIRST(&lru->bins[bin]) != found) {
+			QTAILQ_REMOVE(&lru->bins[bin], found, next_bin);
+			QTAILQ_INSERT_HEAD(&lru->bins[bin], found, next_bin);
+		}
+		if (QTAILQ_FIRST(&lru->global) != found) {
+			QTAILQ_REMOVE(&lru->global, found, next_global);
+			QTAILQ_INSERT_HEAD(&lru->global, found, next_global);
+		}
 	} else {
 		found = lru_get_one_free(lru);
+		if (!found) {
+			return NULL;
+		}
 		found->hash = hash;
 		if (lru->init_node) {
 			lru->init_node(lru, found, key);
@@ -210,11 +216,11 @@ LruNode *lru_lookup(Lru *lru, uint64_t hash, const void *key)
 
 		lru->num_used += 1;
 		lru->num_free -= 1;
-	}
 
-	QTAILQ_REMOVE(&lru->global, found, next_global);
-	QTAILQ_INSERT_HEAD(&lru->global, found, next_global);
-	QTAILQ_INSERT_HEAD(&lru->bins[bin], found, next_bin);
+		QTAILQ_REMOVE(&lru->global, found, next_global);
+		QTAILQ_INSERT_HEAD(&lru->global, found, next_global);
+		QTAILQ_INSERT_HEAD(&lru->bins[bin], found, next_bin);
+	}
 
 	return found;
 }
