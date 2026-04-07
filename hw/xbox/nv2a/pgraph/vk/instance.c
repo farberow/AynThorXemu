@@ -534,9 +534,22 @@ static void add_optional_device_extension_names(
     }
 #endif
 
-    r->push_descriptors_supported = add_extension_if_available(
-        available_extensions, enabled_extension_names,
-        VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+#ifdef __ANDROID__
+    extern bool xemu_android_vulkan_custom_driver_zip_loaded(void);
+    if (r->device_props.vendorID == 0x5143u &&
+        !xemu_android_vulkan_custom_driver_zip_loaded()) {
+        r->push_descriptors_supported = false;
+        fprintf(stderr, "Qualcomm GPU: omitting %s (crashes in stock driver)\n",
+                VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+        __android_log_print(ANDROID_LOG_INFO, "hakuX",
+                            "Qualcomm stock driver: push descriptors disabled");
+    } else
+#endif
+    {
+        r->push_descriptors_supported = add_extension_if_available(
+            available_extensions, enabled_extension_names,
+            VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+    }
 }
 
 static bool check_device_support_required_extensions(VkPhysicalDevice device)
@@ -998,6 +1011,25 @@ static bool create_logical_device(PGRAPHState *pg, Error **errp)
     __android_log_print(ANDROID_LOG_INFO, "hakuX",
                         "vk init stage: vkCreateDevice done");
 #endif
+
+    /* PATCH_EDS1: On Vulkan 1.1 devices with VK_EXT_extended_dynamic_state,
+     * the EXT-named function pointers are valid but the 1.3 core names are
+     * NULL. Copy EXT→core so callers can use the standardized names on any
+     * supported version. */
+#define PATCH_EDS1(core, ext) do { if (!(core)) (core) = (void*)(ext); } while(0)
+    PATCH_EDS1(vkCmdSetCullMode,               vkCmdSetCullModeEXT);
+    PATCH_EDS1(vkCmdSetFrontFace,              vkCmdSetFrontFaceEXT);
+    PATCH_EDS1(vkCmdSetPrimitiveTopology,      vkCmdSetPrimitiveTopologyEXT);
+    PATCH_EDS1(vkCmdSetViewportWithCount,      vkCmdSetViewportWithCountEXT);
+    PATCH_EDS1(vkCmdSetScissorWithCount,       vkCmdSetScissorWithCountEXT);
+    PATCH_EDS1(vkCmdBindVertexBuffers2,        vkCmdBindVertexBuffers2EXT);
+    PATCH_EDS1(vkCmdSetDepthTestEnable,        vkCmdSetDepthTestEnableEXT);
+    PATCH_EDS1(vkCmdSetDepthWriteEnable,       vkCmdSetDepthWriteEnableEXT);
+    PATCH_EDS1(vkCmdSetDepthCompareOp,         vkCmdSetDepthCompareOpEXT);
+    PATCH_EDS1(vkCmdSetDepthBoundsTestEnable,  vkCmdSetDepthBoundsTestEnableEXT);
+    PATCH_EDS1(vkCmdSetStencilTestEnable,      vkCmdSetStencilTestEnableEXT);
+    PATCH_EDS1(vkCmdSetStencilOp,              vkCmdSetStencilOpEXT);
+#undef PATCH_EDS1
 
     pgraph_init_reg_dynamic_masks(
         r->extended_dynamic_state_supported,
