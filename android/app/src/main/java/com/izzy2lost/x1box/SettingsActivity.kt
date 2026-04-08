@@ -39,6 +39,7 @@ class SettingsActivity : AppCompatActivity() {
     private const val PREF_ADVANCED_EXPERIMENTAL_EXPANDED = "settings_advanced_experimental_expanded"
     private const val PREF_HRTF = "setting_hrtf"
     private const val PREF_HRTF_DEFAULT_OFF_MIGRATED = "setting_hrtf_default_off_migrated_v1"
+    private const val PREF_SETTINGS_MIGRATED_V2 = "settings_migrated_v2"
     private const val PREF_INSIGNIA_SETUP_URI = "setting_insignia_setup_assistant_uri"
     private const val PREF_INSIGNIA_SETUP_NAME = "setting_insignia_setup_assistant_name"
     private const val INSIGNIA_SIGN_UP_URL = "https://insignia.live/"
@@ -289,6 +290,7 @@ class SettingsActivity : AppCompatActivity() {
     OrientationLocker(this).enable()
     DebugLog.initialize(this)
     applyHrtfDefaultOffMigration()
+    applySettingsMigrationV2()
     setContentView(R.layout.activity_settings)
     EdgeToEdgeHelper.enable(this)
     EdgeToEdgeHelper.applySystemBarPadding(findViewById(R.id.settings_scroll))
@@ -604,6 +606,34 @@ class SettingsActivity : AppCompatActivity() {
     prefs.edit()
       .putBoolean(PREF_HRTF, false)
       .putBoolean(PREF_HRTF_DEFAULT_OFF_MIGRATED, true)
+      .apply()
+  }
+
+  private fun applySettingsMigrationV2() {
+    if (prefs.getBoolean(PREF_SETTINGS_MIGRATED_V2, false)) {
+      return
+    }
+
+    prefs.edit()
+      .putBoolean("setting_skip_boot_anim", true)
+      .putBoolean("draw_reorder", true)
+      .putBoolean("draw_merge", true)
+      .putBoolean("async_compile", false)
+      .putBoolean("setting_cache_shaders", true)
+      .putBoolean("setting_hard_fpu", true)
+      .putBoolean("setting_vsync", false)
+      .putBoolean("setting_use_dsp", false)
+      .putBoolean("setting_hrtf", false)
+      .putBoolean("setting_network_enable", false)
+      .putString("setting_renderer", "vulkan")
+      .putString("setting_filtering", "nearest")
+      .putString("setting_tcg_thread", "multi")
+      .putString("setting_audio_driver", "openslES")
+      .putInt("setting_surface_scale", 1)
+      .putInt("setting_display_mode", 0)
+      .putInt("setting_system_memory_mib", 64)
+      .putInt("tcg_tb_size", 256)
+      .putBoolean(PREF_SETTINGS_MIGRATED_V2, true)
       .apply()
   }
 
