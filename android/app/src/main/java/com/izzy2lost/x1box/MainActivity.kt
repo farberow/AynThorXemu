@@ -72,6 +72,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   private var resumeEmulationOnMenuDismiss = false
   private var startupSnapshotSlot: Int? = null
   private var startupSnapshotLoadScheduled = false
+  private val controllerSettings by lazy { ControllerSettings(this) }
   private lateinit var swipeUpGestureRecognizer: SwipeUpGestureRecognizer
   private var fpsTextView: TextView? = null
   private val fpsHandler = Handler(Looper.getMainLooper())
@@ -446,8 +447,9 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   }
 
   private fun updateControllerVisibility() {
-    // Show on-screen controller only if no physical controller is connected
-    val shouldShow = !hasPhysicalController
+    // Show the touch controller only if the user wants it and no physical
+    // controller is connected.
+    val shouldShow = controllerSettings.showOnScreenController && !hasPhysicalController
     
     if (shouldShow != isControllerVisible) {
       isControllerVisible = shouldShow

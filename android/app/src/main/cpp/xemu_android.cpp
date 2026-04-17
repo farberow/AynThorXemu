@@ -199,8 +199,115 @@ static bool IsTcgTuningEnabled() {
   return !(value && value[0] == '0');
 }
 
-static void LoadGameControllerMappingsFromAssets() {
+static bool LoadGameControllerMappingsFromBuffer(const void* data,
+                                                 size_t size,
+                                                 const char* source_label) {
+  if (!data || size == 0 || size > INT_MAX) {
+    LogError("Controller mappings: invalid mapping buffer");
+    return false;
+  }
+
+  SDL_RWops* rw = SDL_RWFromConstMem(data, static_cast<int>(size));
+  if (!rw) {
+    LogErrorFmt("Controller mappings: SDL_RWFromConstMem failed for %s: %s",
+                source_label, SDL_GetError());
+    return false;
+  }
+
+  const int added = SDL_GameControllerAddMappingsFromRW(rw, 1);
+  if (added < 0) {
+    LogErrorFmt("Controller mappings: failed to parse %s: %s",
+                source_label, SDL_GetError());
+    return false;
+  }
+
+  LogInfoInt("Controller mappings loaded: %d", added);
+  return true;
+}
+
+static std::string GetAppFilesDirPath() {
+  JNIEnv* env = GetEnv();
+  jobject activity = GetActivity(env);
+  if (!env || !activity) {
+    return {};
+  }
+
+  jclass activityClass = env->GetObjectClass(activity);
+  jmethodID getFilesDir = env->GetMethodID(
+      activityClass, "getFilesDir", "()Ljava/io/File;");
+  if (!getFilesDir) {
+    return {};
+  }
+
+  jobject filesDirObj = env->CallObjectMethod(activity, getFilesDir);
+  if (HasException(env, "Activity.getFilesDir") || !filesDirObj) {
+    return {};
+  }
+
+  jclass fileClass = env->GetObjectClass(filesDirObj);
+  jmethodID getAbsolutePath = env->GetMethodID(
+      fileClass, "getAbsolutePath", "()Ljava/lang/String;");
+  if (!getAbsolutePath) {
+    env->DeleteLocalRef(filesDirObj);
+    return {};
+  }
+
+  jstring pathStr = static_cast<jstring>(
+      env->CallObjectMethod(filesDirObj, getAbsolutePath));
+  env->DeleteLocalRef(filesDirObj);
+  if (HasException(env, "File.getAbsolutePath") || !pathStr) {
+    return {};
+  }
+
+  const char* chars = env->GetStringUTFChars(pathStr, nullptr);
+  std::string path = chars ? chars : "";
+  if (chars) {
+    env->ReleaseStringUTFChars(pathStr, chars);
+  }
+  env->DeleteLocalRef(pathStr);
+  return path;
+}
+
+static bool LoadGameControllerMappingsFromAppFiles() {
+  const std::string files_dir = GetAppFilesDirPath();
+  if (files_dir.empty()) {
+    return false;
+  }
+
+  const std::string path = files_dir + "/controller/gamecontrollerdb.txt";
+  FILE* fp = fopen(path.c_str(), "rb");
+  if (!fp) {
+    return false;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  const long length = ftell(fp);
+  rewind(fp);
+  if (length <= 0) {
+    fclose(fp);
+    LogError("Controller mappings: installed gamecontrollerdb.txt is empty");
+    return false;
+  }
+
+  std::vector<char> data(static_cast<size_t>(length));
+  const size_t read = fread(data.data(), 1, data.size(), fp);
+  fclose(fp);
+  if (read == 0) {
+    LogError("Controller mappings: failed to read installed gamecontrollerdb.txt");
+    return false;
+  }
+  data.resize(read);
+
+  return LoadGameControllerMappingsFromBuffer(
+      data.data(), data.size(), "installed gamecontrollerdb.txt");
+}
+
+static void LoadGameControllerMappings() {
   constexpr const char* kDbAssetName = "gamecontrollerdb.txt";
+
+  if (LoadGameControllerMappingsFromAppFiles()) {
+    return;
+  }
 
   JNIEnv* env = GetEnv();
   jobject activity = GetActivity(env);
@@ -261,19 +368,7 @@ static void LoadGameControllerMappingsFromAssets() {
   }
   data.resize(total);
 
-  SDL_RWops* rw = SDL_RWFromConstMem(data.data(), static_cast<int>(data.size()));
-  if (!rw) {
-    LogErrorFmt("Controller mappings: SDL_RWFromConstMem failed: %s", SDL_GetError());
-    return;
-  }
-
-  const int added = SDL_GameControllerAddMappingsFromRW(rw, 1);
-  if (added < 0) {
-    LogErrorFmt("Controller mappings: failed to parse gamecontrollerdb.txt: %s", SDL_GetError());
-    return;
-  }
-
-  LogInfoInt("Controller mappings loaded from assets: %d", added);
+  LoadGameControllerMappingsFromBuffer(data.data(), data.size(), "assets/gamecontrollerdb.txt");
 }
 
 static const char* GetTcgThreadFromEnv() {
@@ -1139,7 +1234,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     return 1;
   }
   SDL_GameControllerEventState(SDL_ENABLE);
-  LoadGameControllerMappingsFromAssets();
+  LoadGameControllerMappings();
 
   auto t_sync_start = SDL_GetTicks();
   SetupFiles setup = SyncSetupFiles();

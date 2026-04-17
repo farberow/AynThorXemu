@@ -103,6 +103,20 @@
   <string name="settings_save">Save</string>
   <string name="settings_redo_setup_wizard">Setup Wizard</string>
 
+  <string name="settings_section_controls">Controls</string>
+  <string name="settings_controller_mappings_hint">Import a standard SDL gamecontroller database file to fix or override physical controller mappings. Restart the app after changing this file so SDL reloads it cleanly.</string>
+  <string name="settings_show_on_screen_controller">Show on-screen touch controls when no gamepad is connected</string>
+  <string name="settings_controller_mappings_status_none">Custom controller mappings: not installed</string>
+  <string name="settings_controller_mappings_status_installed">Custom controller mappings: %1$s installed</string>
+  <string name="settings_controller_mappings_import">Import Mapping File</string>
+  <string name="settings_controller_mappings_clear">Remove Mapping File</string>
+  <string name="settings_controller_mappings_import_success">Controller mappings imported. Restart the app to apply them.</string>
+  <string name="settings_controller_mappings_import_failed">Failed to import controller mappings: %1$s</string>
+  <string name="settings_controller_mappings_import_failed_empty">The selected mapping file was empty.</string>
+  <string name="settings_controller_mappings_clear_success">Custom controller mappings removed. Restart the app to return to the default mappings.</string>
+  <string name="settings_controller_mappings_clear_failed">Failed to remove the custom controller mappings file.</string>
+  <string name="settings_controller_mappings_clear_empty">No custom controller mappings file is installed.</string>
+
   <string name="settings_section_display">Display</string>
   <string name="settings_graphics_api">Graphics API</string>
   <string name="settings_graphics_api_vulkan">Vulkan</string>

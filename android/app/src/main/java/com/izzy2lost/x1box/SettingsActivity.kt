@@ -56,6 +56,7 @@ class SettingsActivity : AppCompatActivity() {
   }
 
   private val prefs by lazy { getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+  private val controllerSettings by lazy { ControllerSettings(this) }
 
   private data class EepromLanguageOption(
     val value: XboxEepromEditor.Language,
@@ -188,6 +189,10 @@ class SettingsActivity : AppCompatActivity() {
   private lateinit var btnPrepareInsignia: MaterialButton
   private lateinit var btnRegisterInsignia: MaterialButton
   private lateinit var btnImportDashboard: MaterialButton
+  private lateinit var switchShowOnScreenController: MaterialSwitch
+  private lateinit var tvControllerMappingStatus: TextView
+  private lateinit var btnImportControllerMappings: MaterialButton
+  private lateinit var btnClearControllerMappings: MaterialButton
   private lateinit var layoutAdvancedExperimentalContent: LinearLayout
   private lateinit var dropdownUiOrientation: AutoCompleteTextView
   private lateinit var dropdownGameOrientation: AutoCompleteTextView
@@ -285,6 +290,12 @@ class SettingsActivity : AppCompatActivity() {
       exportManagedFiles(uri)
     }
 
+  private val importControllerMappingsDocument =
+    registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+      uri ?: return@registerForActivityResult
+      importControllerMappings(uri)
+    }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     OrientationLocker(this).enable()
@@ -334,6 +345,10 @@ class SettingsActivity : AppCompatActivity() {
     btnPrepareInsignia   = findViewById(R.id.btn_prepare_insignia)
     btnRegisterInsignia  = findViewById(R.id.btn_register_insignia)
     btnImportDashboard   = findViewById(R.id.btn_import_dashboard)
+    switchShowOnScreenController = findViewById(R.id.switch_show_on_screen_controller)
+    tvControllerMappingStatus = findViewById(R.id.tv_controller_mapping_status)
+    btnImportControllerMappings = findViewById(R.id.btn_import_controller_mappings)
+    btnClearControllerMappings = findViewById(R.id.btn_clear_controller_mappings)
     layoutAdvancedExperimentalContent = findViewById(R.id.layout_advanced_experimental_content)
     dropdownUiOrientation = findViewById(R.id.dropdown_app_orientation)
     dropdownGameOrientation = findViewById(R.id.dropdown_game_orientation)
@@ -447,6 +462,15 @@ class SettingsActivity : AppCompatActivity() {
       else      -> toggleAudioDriver.check(R.id.btn_audio_opensles)
     }
 
+    switchShowOnScreenController.isChecked = controllerSettings.showOnScreenController
+    refreshControllerMappingsStatus()
+    btnImportControllerMappings.setOnClickListener {
+      importControllerMappingsDocument.launch(arrayOf("text/*", "application/octet-stream", "*/*"))
+    }
+    btnClearControllerMappings.setOnClickListener {
+      clearControllerMappings()
+    }
+
     btnRedoSetup.setOnClickListener {
       prefs.edit().putBoolean("setup_complete", false).apply()
       startActivity(Intent(this, SetupWizardActivity::class.java))
@@ -538,6 +562,7 @@ class SettingsActivity : AppCompatActivity() {
         .putString("setting_renderer", selectedRenderer)
 
       edit.apply()
+      controllerSettings.showOnScreenController = switchShowOnScreenController.isChecked
       DebugLog.setEnabled(
         context = this@SettingsActivity,
         value = enableDebugLogs,
@@ -988,6 +1013,66 @@ class SettingsActivity : AppCompatActivity() {
       Toast.LENGTH_LONG,
     ).show()
     recreate()
+  }
+
+  private fun importControllerMappings(uri: Uri) {
+    runCatching {
+      ControllerMappingFiles.ensureParentDirectory(this)
+      val target = ControllerMappingFiles.resolveFile(this)
+      copyUriToFile(uri, target)
+      if (!target.isFile || target.length() <= 0L) {
+        target.delete()
+        throw IOException(getString(R.string.settings_controller_mappings_import_failed_empty))
+      }
+    }.onSuccess {
+      refreshControllerMappingsStatus()
+      Toast.makeText(
+        this,
+        R.string.settings_controller_mappings_import_success,
+        Toast.LENGTH_LONG,
+      ).show()
+    }.onFailure { error ->
+      Toast.makeText(
+        this,
+        getString(
+          R.string.settings_controller_mappings_import_failed,
+          error.message ?: getString(R.string.settings_import_emulator_files_unknown_error),
+        ),
+        Toast.LENGTH_LONG,
+      ).show()
+    }
+  }
+
+  private fun clearControllerMappings() {
+    val mappingFile = ControllerMappingFiles.resolveFile(this)
+    if (!mappingFile.exists()) {
+      refreshControllerMappingsStatus()
+      Toast.makeText(this, R.string.settings_controller_mappings_clear_empty, Toast.LENGTH_SHORT).show()
+      return
+    }
+
+    val deleted = mappingFile.delete()
+    refreshControllerMappingsStatus()
+    Toast.makeText(
+      this,
+      if (deleted) {
+        R.string.settings_controller_mappings_clear_success
+      } else {
+        R.string.settings_controller_mappings_clear_failed
+      },
+      Toast.LENGTH_LONG,
+    ).show()
+  }
+
+  private fun refreshControllerMappingsStatus() {
+    val mappingFile = ControllerMappingFiles.resolveFile(this)
+    val hasMappings = mappingFile.isFile && mappingFile.length() > 0L
+    tvControllerMappingStatus.text = if (hasMappings) {
+      getString(R.string.settings_controller_mappings_status_installed, mappingFile.name)
+    } else {
+      getString(R.string.settings_controller_mappings_status_none)
+    }
+    btnClearControllerMappings.isEnabled = hasMappings
   }
 
   private fun copyZipEntryToFile(zip: ZipInputStream, target: File) {
