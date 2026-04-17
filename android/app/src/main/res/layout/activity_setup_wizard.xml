@@ -72,7 +72,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_mcpx_title"
                 android:src="@drawable/ic_xemu_upload_file"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_mcpx_title"
@@ -127,7 +127,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_flash_title"
                 android:src="@drawable/ic_xemu_memory"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_flash_title"
@@ -182,7 +182,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_hdd_title"
                 android:src="@drawable/ic_xemu_hard_drive"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_hdd_title"
@@ -237,7 +237,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_disc_title"
                 android:src="@drawable/ic_xemu_disc"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_disc_title"

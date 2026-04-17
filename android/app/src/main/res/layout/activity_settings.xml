@@ -427,7 +427,7 @@
             android:layout_marginBottom="8dp"
             android:text="@string/settings_gpu_driver_not_supported"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:textColor="#FFAB91"
+            android:textColor="@color/xemu_warning"
             android:visibility="gone" />
 
           <com.google.android.material.button.MaterialButton
