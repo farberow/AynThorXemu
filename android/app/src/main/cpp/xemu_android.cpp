@@ -966,10 +966,14 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "FP JIT (native storage + inline ops): %s", fp_jit ? "ON" : "OFF");
 
-  // Fast fences defers fence waits into a spin. Tested on Thor: caused
-  // stutter-then-crash in Fable, so keep it opt-in until the underlying
-  // readback path is audited.
-  bool fast_fences = GetPrefBool(env, activity, "fast_fences", false);
+  // Defer the NEED_BUFFER_SPACE / VERTEX_BUFFER_DIRTY finishes into a
+  // short spin on submission. Net-positive on Fable and Conker — the
+  // alternative (synchronous vkWaitForFences) produces much longer
+  // freezes than any glitching we've seen. There's a visible texture-
+  // upload race during scene transitions (white streaks in the top
+  // half of the screen for a frame or two); that's a known cost and
+  // cheaper than the stalls we get without it.
+  bool fast_fences = GetPrefBool(env, activity, "fast_fences", true);
   xemu_set_fast_fences(fast_fences);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "fast fences: %s", fast_fences ? "ON" : "OFF");
@@ -989,10 +993,10 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "bindless textures: %s", bindless_tex ? "ON" : "OFF");
 
-  // Async compile skips draws on uncompiled pipelines. Stays opt-in with
-  // fast_fences — skipped draws plus deferred fences appear to interact
-  // badly in Fable during early-scene shader warmup.
-  bool async_compile = GetPrefBool(env, activity, "async_compile", false);
+  // Skip draws on uncompiled pipelines instead of stalling the render
+  // thread. A synchronous shader compile on Adreno is 20-80 ms of pure
+  // freeze; a dropped frame recovers on the next redraw.
+  bool async_compile = GetPrefBool(env, activity, "async_compile", true);
   xemu_set_async_compile(async_compile);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "async compile: %s", async_compile ? "ON" : "OFF");
