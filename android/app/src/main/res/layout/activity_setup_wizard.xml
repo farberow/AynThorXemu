@@ -25,21 +25,16 @@
       android:gravity="center_horizontal"
       android:orientation="vertical">
 
-      <com.google.android.material.card.MaterialCardView
+      <!--
+        Distilled: full-page wrapper card removed. setup_card id moved onto
+        the content container so the Kotlin minimumHeight logic still works.
+      -->
+      <LinearLayout
         android:id="@+id/setup_card"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="8dp"
-        app:strokeColor="@color/xemu_green_700"
-        app:strokeWidth="1dp">
-
-        <LinearLayout
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:orientation="vertical"
-          android:padding="24dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="20dp">
 
           <TextView
             android:id="@+id/setup_title"
@@ -350,8 +345,7 @@
               android:layout_weight="1"
               android:text="@string/setup_next" />
           </LinearLayout>
-        </LinearLayout>
-      </com.google.android.material.card.MaterialCardView>
+      </LinearLayout>
     </LinearLayout>
   </androidx.core.widget.NestedScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>

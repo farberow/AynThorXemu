@@ -13,11 +13,13 @@
     IS the surface, not a card on a surface. The brand is sparse on purpose;
     the bold green lives in the HUD numbers below, not the chrome.
   -->
-  <View
+  <ImageView
     android:id="@+id/dashboard_brand_wedge"
-    android:layout_width="6dp"
+    android:layout_width="28dp"
     android:layout_height="28dp"
-    android:background="@color/xemu_green_500"
+    android:contentDescription="@null"
+    android:src="@drawable/ic_xemu_x_mark"
+    app:tint="@color/xemu_green_500"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent" />
 
