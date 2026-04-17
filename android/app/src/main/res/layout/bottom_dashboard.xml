@@ -5,7 +5,8 @@
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:background="@color/xemu_black"
-  android:keepScreenOn="true">
+  android:keepScreenOn="true"
+  android:padding="20dp">
 
   <TextView
     android:id="@+id/dashboard_brand"
@@ -13,12 +14,10 @@
     android:layout_height="wrap_content"
     android:text="@string/app_name"
     android:textColor="@color/xemu_green"
-    android:textSize="22sp"
+    android:textSize="20sp"
     android:textStyle="bold"
     android:letterSpacing="0.12"
     android:fontFamily="monospace"
-    android:layout_marginTop="24dp"
-    android:layout_marginStart="24dp"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toTopOf="parent" />
 
@@ -28,59 +27,75 @@
     android:layout_height="wrap_content"
     android:text="dashboard"
     android:textColor="@color/xemu_text_muted"
-    android:textSize="12sp"
+    android:textSize="11sp"
     android:letterSpacing="0.25"
     android:fontFamily="monospace"
     app:layout_constraintStart_toStartOf="@id/dashboard_brand"
     app:layout_constraintTop_toBottomOf="@id/dashboard_brand" />
 
   <TextView
-    android:id="@+id/dashboard_fps_label"
+    android:id="@+id/dashboard_status"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="FPS"
+    android:text="idle"
     android:textColor="@color/xemu_text_muted"
-    android:textSize="14sp"
-    android:letterSpacing="0.2"
+    android:textSize="11sp"
+    android:letterSpacing="0.25"
     android:fontFamily="monospace"
-    android:layout_marginTop="32dp"
-    android:layout_marginStart="24dp"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@id/dashboard_subtitle" />
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toTopOf="@id/dashboard_brand"
+    app:layout_constraintBottom_toBottomOf="@id/dashboard_subtitle" />
 
-  <TextView
-    android:id="@+id/dashboard_fps_value"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="—"
-    android:textColor="@color/xemu_green"
-    android:textSize="72sp"
-    android:fontFamily="monospace"
-    app:layout_constraintStart_toStartOf="@id/dashboard_fps_label"
-    app:layout_constraintTop_toBottomOf="@id/dashboard_fps_label" />
-
+  <!-- Stats row: FPS / CPU / GPU -->
   <LinearLayout
-    android:id="@+id/dashboard_thermals"
-    android:layout_width="wrap_content"
+    android:id="@+id/dashboard_stats"
+    android:layout_width="0dp"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:layout_marginEnd="24dp"
-    android:layout_marginTop="32dp"
+    android:weightSum="3"
+    android:layout_marginTop="24dp"
+    app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintTop_toBottomOf="@id/dashboard_subtitle">
 
     <LinearLayout
-      android:layout_width="wrap_content"
+      android:layout_width="0dp"
       android:layout_height="wrap_content"
-      android:orientation="vertical"
-      android:layout_marginEnd="32dp">
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="FPS"
+        android:textColor="@color/xemu_text_muted"
+        android:textSize="12sp"
+        android:letterSpacing="0.2"
+        android:fontFamily="monospace" />
+
+      <TextView
+        android:id="@+id/dashboard_fps_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textColor="@color/xemu_green"
+        android:textSize="56sp"
+        android:fontFamily="monospace" />
+
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:orientation="vertical">
 
       <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="CPU"
         android:textColor="@color/xemu_text_muted"
-        android:textSize="14sp"
+        android:textSize="12sp"
         android:letterSpacing="0.2"
         android:fontFamily="monospace" />
 
@@ -96,8 +111,9 @@
     </LinearLayout>
 
     <LinearLayout
-      android:layout_width="wrap_content"
+      android:layout_width="0dp"
       android:layout_height="wrap_content"
+      android:layout_weight="1"
       android:orientation="vertical">
 
       <TextView
@@ -105,7 +121,7 @@
         android:layout_height="wrap_content"
         android:text="GPU"
         android:textColor="@color/xemu_text_muted"
-        android:textSize="14sp"
+        android:textSize="12sp"
         android:letterSpacing="0.2"
         android:fontFamily="monospace" />
 
@@ -122,17 +138,170 @@
 
   </LinearLayout>
 
+  <!-- Slot row -->
   <TextView
-    android:id="@+id/dashboard_placeholder"
+    android:id="@+id/dashboard_controls_label"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="save state · quick toggles coming soon"
+    android:text="SAVE STATE"
     android:textColor="@color/xemu_text_muted"
-    android:textSize="11sp"
+    android:textSize="12sp"
+    android:letterSpacing="0.25"
     android:fontFamily="monospace"
-    android:layout_marginBottom="24dp"
-    android:layout_marginStart="24dp"
+    android:layout_marginTop="28dp"
     app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintBottom_toBottomOf="parent" />
+    app:layout_constraintTop_toBottomOf="@id/dashboard_stats" />
+
+  <LinearLayout
+    android:id="@+id/dashboard_slot_row"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginTop="8dp"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_controls_label">
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/dashboard_slot_prev"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="56dp"
+      android:layout_height="56dp"
+      android:insetTop="0dp"
+      android:insetBottom="0dp"
+      android:minWidth="0dp"
+      android:text="−"
+      android:textSize="22sp"
+      app:strokeColor="@color/xemu_outline"
+      android:textColor="@color/xemu_text" />
+
+    <TextView
+      android:id="@+id/dashboard_slot_label"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:gravity="center"
+      android:text="SLOT 1"
+      android:textColor="@color/xemu_text"
+      android:textSize="20sp"
+      android:fontFamily="monospace"
+      android:letterSpacing="0.2" />
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/dashboard_slot_next"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="56dp"
+      android:layout_height="56dp"
+      android:insetTop="0dp"
+      android:insetBottom="0dp"
+      android:minWidth="0dp"
+      android:text="+"
+      android:textSize="22sp"
+      app:strokeColor="@color/xemu_outline"
+      android:textColor="@color/xemu_text" />
+
+  </LinearLayout>
+
+  <!-- Save / Load row -->
+  <LinearLayout
+    android:id="@+id/dashboard_save_load_row"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginTop="8dp"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_slot_row">
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/dashboard_save"
+      android:layout_width="0dp"
+      android:layout_height="56dp"
+      android:layout_weight="1"
+      android:layout_marginEnd="6dp"
+      android:insetTop="0dp"
+      android:insetBottom="0dp"
+      android:text="SAVE"
+      android:textColor="@color/xemu_black"
+      app:backgroundTint="@color/xemu_green" />
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/dashboard_load"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="0dp"
+      android:layout_height="56dp"
+      android:layout_weight="1"
+      android:layout_marginStart="6dp"
+      android:insetTop="0dp"
+      android:insetBottom="0dp"
+      android:text="LOAD"
+      android:textColor="@color/xemu_text"
+      app:strokeColor="@color/xemu_outline" />
+
+  </LinearLayout>
+
+  <!-- Quick toggles row: Pause/Resume, Reboot -->
+  <TextView
+    android:id="@+id/dashboard_toggles_label"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="QUICK"
+    android:textColor="@color/xemu_text_muted"
+    android:textSize="12sp"
+    android:letterSpacing="0.25"
+    android:fontFamily="monospace"
+    android:layout_marginTop="20dp"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_save_load_row" />
+
+  <LinearLayout
+    android:id="@+id/dashboard_toggles_row"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginTop="8dp"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_toggles_label">
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/dashboard_pause"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="0dp"
+      android:layout_height="52dp"
+      android:layout_weight="1"
+      android:layout_marginEnd="6dp"
+      android:insetTop="0dp"
+      android:insetBottom="0dp"
+      android:text="PAUSE"
+      android:textColor="@color/xemu_text"
+      app:strokeColor="@color/xemu_outline" />
+
+    <com.google.android.material.button.MaterialButton
+      android:id="@+id/dashboard_reboot"
+      style="?attr/materialButtonOutlinedStyle"
+      android:layout_width="0dp"
+      android:layout_height="52dp"
+      android:layout_weight="1"
+      android:layout_marginStart="6dp"
+      android:insetTop="0dp"
+      android:insetBottom="0dp"
+      android:text="REBOOT"
+      android:textColor="@color/xemu_warning"
+      app:strokeColor="@color/xemu_warning" />
+
+  </LinearLayout>
+
+  <com.google.android.material.materialswitch.MaterialSwitch
+    android:id="@+id/dashboard_fps_switch"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="FPS overlay on main"
+    android:textColor="@color/xemu_text"
+    android:fontFamily="monospace"
+    android:layout_marginTop="16dp"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_toggles_row" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

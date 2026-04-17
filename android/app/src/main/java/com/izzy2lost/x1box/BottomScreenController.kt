@@ -24,11 +24,19 @@ class BottomScreenController(private val app: Context) {
   private var resumedActivity: Activity? = null
   private var presentation: BottomScreenPresentation? = null
   private var lastFps: Int? = null
+  private var emulatorBridge: EmulatorBridge? = null
 
   fun postFps(fps: Int?) {
     lastFps = fps
     presentation?.setFps(fps)
   }
+
+  fun setEmulatorBridge(bridge: EmulatorBridge?) {
+    emulatorBridge = bridge
+    presentation?.setEmulatorBridge(bridge)
+  }
+
+  fun currentEmulatorBridge(): EmulatorBridge? = emulatorBridge
 
   private val displayListener = object : DisplayManager.DisplayListener {
     override fun onDisplayAdded(displayId: Int) {
@@ -80,6 +88,7 @@ class BottomScreenController(private val app: Context) {
     runCatching {
       p.show()
       p.setFps(lastFps)
+      p.setEmulatorBridge(emulatorBridge)
     }.onFailure { presentation = null }
   }
 

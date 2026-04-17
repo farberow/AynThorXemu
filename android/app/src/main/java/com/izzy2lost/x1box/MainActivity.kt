@@ -44,7 +44,7 @@ import java.nio.ByteOrder
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
+class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBridge {
   companion object {
     const val EXTRA_AUTO_LOAD_SNAPSHOT_SLOT = "com.izzy2lost.x1box.extra.AUTO_LOAD_SNAPSHOT_SLOT"
     private const val SNAPSHOT_PREVIEW_HEADER_SIZE = 12
@@ -347,11 +347,13 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
 
     updateFpsOverlayPosition()
     scheduleStartupSnapshotLoadIfRequested()
+    (application as? XemuApp)?.bottomScreen?.setEmulatorBridge(this)
   }
 
   override fun onPause() {
     fpsHandler.removeCallbacks(fpsRunnable)
     (application as? XemuApp)?.bottomScreen?.postFps(null)
+    (application as? XemuApp)?.bottomScreen?.setEmulatorBridge(null)
     swipeUpGestureRecognizer.reset()
     onScreenController?.resetAllInputs()
     controllerBridge?.reset()
@@ -589,6 +591,35 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   private external fun nativePauseEmulation()
   private external fun nativeResumeEmulation()
   private external fun nativeExitEmulation()
+
+  override fun saveSnapshot(slot: Int) {
+    if (slot !in 1..TOTAL_SNAPSHOT_SLOTS) return
+    runSnapshotOperation(slot, save = true)
+  }
+
+  override fun loadSnapshot(slot: Int) {
+    if (slot !in 1..TOTAL_SNAPSHOT_SLOTS) return
+    runSnapshotOperation(slot, save = false)
+  }
+
+  override fun pauseEmulation() {
+    nativePauseEmulation()
+  }
+
+  override fun resumeEmulation() {
+    nativeResumeEmulation()
+  }
+
+  override fun rebootSystem() {
+    nativeRebootSystem()
+  }
+
+  override fun setFpsOverlayVisible(visible: Boolean) {
+    runOnUiThread {
+      fpsTextView?.visibility = if (visible) View.VISIBLE else View.GONE
+      updateFpsOverlayPosition()
+    }
+  }
 
   private fun slotName(slot: Int) = "android_slot_$slot"
 

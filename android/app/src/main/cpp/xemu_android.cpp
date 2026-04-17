@@ -131,6 +131,10 @@ static void LogErrorFmt(const char* fmt, const char* detail) {
   __android_log_print(ANDROID_LOG_ERROR, kLogTag, fmt, detail);
 }
 
+static void LogErrorFmt(const char* fmt, const char* a, const char* b) {
+  __android_log_print(ANDROID_LOG_ERROR, kLogTag, fmt, a, b);
+}
+
 static bool EnsureDirExists(const std::string& path) {
   if (path.empty()) return false;
   if (mkdir(path.c_str(), 0755) == 0) return true;
