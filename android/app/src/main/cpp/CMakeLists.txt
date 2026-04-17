@@ -63,9 +63,10 @@ endif()
 
 option(XEMU_ENABLE_VULKAN "Enable Vulkan renderer" ON)
 option(XEMU_ENABLE_XISO_CONVERTER "Enable ISO->XISO converter library" ON)
-option(XEMU_OPT_NATIVE_FLOAT "Enable native ARM64 float operations for SSE/FPU" OFF)
-option(XEMU_OPT_TCG_PEEPHOLE "Enable TCG optimizer setcond+brcond peephole fusion" OFF)
-option(XEMU_OPT_TB_CACHE_HINTS "Enable persistent TB cache hints (pre-warm on load)" OFF)
+option(XEMU_OPT_NATIVE_FLOAT "Enable native ARM64 float operations for SSE/FPU" ON)
+option(XEMU_OPT_TCG_PEEPHOLE "Enable TCG optimizer setcond+brcond peephole fusion" ON)
+option(XEMU_OPT_TB_CACHE_HINTS "Enable persistent TB cache hints (pre-warm on load)" ON)
+option(XEMU_OPT_THREAD_AFFINITY "Pin hot QEMU/NV2A threads to big cores on Android" ON)
 
 set(RUSTC_EXECUTABLE "")
 set(CARGO_EXECUTABLE "")
@@ -975,6 +976,7 @@ target_compile_definitions(xemu_core PRIVATE
   $<$<BOOL:${XEMU_OPT_NATIVE_FLOAT}>:XEMU_OPT_NATIVE_FLOAT=1>
   $<$<BOOL:${XEMU_OPT_TCG_PEEPHOLE}>:XEMU_OPT_TCG_PEEPHOLE=1>
   $<$<BOOL:${XEMU_OPT_TB_CACHE_HINTS}>:XEMU_OPT_TB_CACHE_HINTS=1>
+  $<$<BOOL:${XEMU_OPT_THREAD_AFFINITY}>:XEMU_OPT_THREAD_AFFINITY=1>
   CONFIG_ATOMIC64
   CONFIG_PPOLL
   CONFIG_PRCTL_PR_SET_TIMERSLACK
@@ -1065,6 +1067,7 @@ target_compile_definitions(xemu PRIVATE ANDROID __ANDROID__ XBOX CONFIG_SDL CONF
   $<$<BOOL:${XEMU_OPT_NATIVE_FLOAT}>:XEMU_OPT_NATIVE_FLOAT=1>
   $<$<BOOL:${XEMU_OPT_TCG_PEEPHOLE}>:XEMU_OPT_TCG_PEEPHOLE=1>
   $<$<BOOL:${XEMU_OPT_TB_CACHE_HINTS}>:XEMU_OPT_TB_CACHE_HINTS=1>
+  $<$<BOOL:${XEMU_OPT_THREAD_AFFINITY}>:XEMU_OPT_THREAD_AFFINITY=1>
 )
 if(XEMU_ENABLE_VULKAN)
   target_compile_definitions(xemu PRIVATE CONFIG_VULKAN VK_NO_PROTOTYPES)

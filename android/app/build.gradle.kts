@@ -70,15 +70,22 @@ android {
 
     externalNativeBuild {
       cmake {
+        // AYN Thor runs Snapdragon 8 Gen 2 (Cortex-X3 prime + A715/A710 + A510).
+        // Tuning for X3 keeps ISA compatible with the small cores (all ARMv9-A)
+        // while letting the scheduler order instructions for the prime core
+        // pipeline. Release uses -O3 to help the TCG hot loop and the NV2A
+        // graphics path; debug stays at -O2 so stack traces stay readable.
+        val thorReleaseFlags =
+          "-O3 -g0 -fvisibility=hidden -mcpu=cortex-x3 -fno-math-errno"
         arguments += listOf(
           "-DXEMU_ANDROID_BUILD_ID=3",
           "-DXEMU_ENABLE_XISO_CONVERTER=ON",
           "-DCMAKE_C_FLAGS_DEBUG=-O2 -g0",
           "-DCMAKE_CXX_FLAGS_DEBUG=-O2 -g0",
-          "-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O2 -g0 -fvisibility=hidden",
-          "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g0 -fvisibility=hidden",
-          "-DCMAKE_C_FLAGS_RELEASE=-O2 -g0 -fvisibility=hidden",
-          "-DCMAKE_CXX_FLAGS_RELEASE=-O2 -g0 -fvisibility=hidden",
+          "-DCMAKE_C_FLAGS_RELWITHDEBINFO=$thorReleaseFlags",
+          "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=$thorReleaseFlags",
+          "-DCMAKE_C_FLAGS_RELEASE=$thorReleaseFlags",
+          "-DCMAKE_CXX_FLAGS_RELEASE=$thorReleaseFlags",
         ) + listOfNotNull(
           hostPython3?.let { "-DPython3_EXECUTABLE=$it" },
           hostPython3?.let { "-DPYTHON_EXECUTABLE=$it" },
