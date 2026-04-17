@@ -1005,7 +1005,11 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "frame skip: %s", frame_skip ? "ON" : "OFF");
 
-  int submit_frames = GetPrefInt(env, activity, "submit_frames", 2);
+  // Pair with fast_fences: three frame slots means frame rotation almost
+  // never blocks on the next slot's fence. Costs ~800 MB of extra staging
+  // pools — well within Thor's memory budget, not cheap on low-RAM devices,
+  // but the default is only consulted when the user hasn't set a value.
+  int submit_frames = GetPrefInt(env, activity, "submit_frames", 3);
   xemu_set_submit_frames(submit_frames);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "submit frames: %d", submit_frames);
