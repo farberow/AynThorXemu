@@ -139,6 +139,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_display"
@@ -398,6 +399,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_gpu_driver_title"
@@ -476,6 +478,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_performance"
@@ -574,6 +577,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_audio"
@@ -647,6 +651,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_online"
@@ -735,6 +740,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_eeprom"
@@ -859,6 +865,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_advanced_experimental"
@@ -890,7 +897,8 @@
             <TextView
               android:layout_width="wrap_content"
               android:layout_height="wrap_content"
-              android:layout_marginBottom="8dp"
+              android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp"
               android:background="@drawable/section_header_background"
               android:text="@string/settings_section_hdd_tools"
               android:textAppearance="@style/TextAppearance.Xemu.Section" />
@@ -946,6 +954,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_maintenance"
