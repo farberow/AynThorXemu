@@ -10,10 +10,17 @@
   <color name="xemu_text">#EAF6EB</color>
   <color name="xemu_text_muted">#A8BFA9</color>
 
-  <!-- Xbox Green — primary accent, brighter/more vivid -->
+  <!-- Xbox Green ramp — five real tones, not three aliases -->
+  <color name="xemu_green_100">#E9FFDB</color>  <!-- highlight / on-green text -->
+  <color name="xemu_green_300">#B6FF8C</color>  <!-- glow / hover / edge bloom -->
+  <color name="xemu_green_500">#66FF00</color>  <!-- primary accent (Halo green) -->
+  <color name="xemu_green_700">#2F7A00</color>  <!-- pressed / secondary -->
+  <color name="xemu_green_900">#0A2A00</color>  <!-- deep green / shadow wash -->
+
+  <!-- Legacy aliases so existing XML still resolves; wire to the ramp. -->
   <color name="xemu_green">#66FF00</color>
-  <color name="xemu_green_light">#66FF00</color>
-  <color name="xemu_green_dark">#66FF00</color>
+  <color name="xemu_green_light">#B6FF8C</color>
+  <color name="xemu_green_dark">#2F7A00</color>
   <color name="xemu_green_container">#1A5224</color>
 
   <!-- Notice -->

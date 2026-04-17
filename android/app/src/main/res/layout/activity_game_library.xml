@@ -28,10 +28,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="14dp"
-        app:strokeColor="@color/xemu_outline"
-        app:strokeWidth="2dp">
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp"
+        app:strokeColor="@color/xemu_green_700"
+        app:strokeWidth="1dp">
 
         <LinearLayout
           android:layout_width="match_parent"
@@ -45,11 +45,17 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
+            <View
+              android:layout_width="4dp"
+              android:layout_height="28dp"
+              android:layout_marginEnd="10dp"
+              android:background="@color/xemu_green_500" />
+
             <TextView
               android:layout_width="wrap_content"
               android:layout_height="wrap_content"
               android:text="@string/library_title"
-              android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" />
+              android:textAppearance="@style/TextAppearance.Xemu.Display" />
 
             <ImageButton
               android:id="@+id/btn_library_about"
@@ -95,14 +101,13 @@
 
             <com.google.android.material.button.MaterialButton
               android:id="@+id/btn_boot_dashboard"
+              style="@style/Widget.Xemu.Button.Wedge"
               android:layout_width="0dp"
               android:layout_height="wrap_content"
               android:layout_weight="1"
               android:text="@string/library_boot_dashboard"
-              android:textColor="@color/xemu_black"
               app:icon="@drawable/ic_xemu_play"
               app:iconGravity="textStart"
-              app:iconTint="@color/xemu_black"
               app:iconPadding="8dp" />
 
             <com.google.android.material.button.MaterialButton
