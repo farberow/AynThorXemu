@@ -1429,9 +1429,16 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
     } else {
         LruNode *node = lru_lookup(&r->texture_cache, key_hash, &key);
         if (!node) {
-            /* LRU exhausted — all texture slots in-flight. Skip this
-             * texture bind and use whatever was previously bound. */
-            return;
+            /* Every slot is locked by in-flight frames. Drain them so
+             * entries become evictable and retry once — silently
+             * skipping leaves whatever was last bound in place, which
+             * shows up as flashing or wrong textures in Fable, Conker,
+             * and other titles that push the cache hard. */
+            pgraph_vk_flush_all_frames(pg);
+            node = lru_lookup(&r->texture_cache, key_hash, &key);
+            if (!node) {
+                return;
+            }
         }
         snode = container_of(node, TextureBinding, node);
         binding_found = snode->image != VK_NULL_HANDLE;
