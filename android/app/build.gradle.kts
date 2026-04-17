@@ -91,7 +91,7 @@ android {
   externalNativeBuild {
     cmake {
       path = file("src/main/cpp/CMakeLists.txt")
-      version = "3.30.3"
+      version = "3.22.1"
     }
   }
 
@@ -126,4 +126,13 @@ kotlin {
   compilerOptions {
     jvmTarget.set(JvmTarget.JVM_21)
   }
+}
+
+tasks.register<Exec>("runDebug") {
+  group = "install"
+  description = "Installs and launches the debug APK on the connected device."
+  dependsOn("installDebug")
+  val adbPath = android.sdkDirectory.resolve("platform-tools/adb").absolutePath
+  val pkg = android.defaultConfig.applicationId
+  commandLine(adbPath, "shell", "am", "start", "-n", "$pkg/.LauncherActivity")
 }

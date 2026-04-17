@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22.1)
 project(xemu_android LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -188,7 +188,15 @@ if(NOT ANDROID_API)
 endif()
 
 set(ANDROID_TRIPLE "aarch64-none-linux-android${ANDROID_API}")
-set(NDK_TOOLCHAIN "${NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin")
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  set(NDK_HOST_TAG "linux-x86_64")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  set(NDK_HOST_TAG "darwin-x86_64")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+  set(NDK_HOST_TAG "windows-x86_64")
+endif()
+
+set(NDK_TOOLCHAIN "${NDK_PATH}/toolchains/llvm/prebuilt/${NDK_HOST_TAG}/bin")
 
 if(XEMU_XISO_CONVERTER_BUILD_ENABLED)
   if(CMAKE_HOST_WIN32)
@@ -299,7 +307,7 @@ file(WRITE "${GLIB_CROSS_FILE}"
 "\n"
 "[properties]\n"
 "needs_exe_wrapper = true\n"
-"sys_root = '${NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/sysroot'\n"
+"sys_root = '${NDK_PATH}/toolchains/llvm/prebuilt/${NDK_HOST_TAG}/sysroot'\n"
 "c_args = ['--target=${ANDROID_TRIPLE}', '-I${CMAKE_CURRENT_LIST_DIR}/iconv_stub']\n"
 "cpp_args = ['--target=${ANDROID_TRIPLE}', '-I${CMAKE_CURRENT_LIST_DIR}/iconv_stub']\n"
 "c_link_args = ['--target=${ANDROID_TRIPLE}', '-L${ICONV_STUB_DIR}', '-liconv']\n"
