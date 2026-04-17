@@ -148,6 +148,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBr
     nativeSetenv("XEMU_RENDERER", rendererPref)
     OrientationLocker(this, landscapeOnly = true).enable()
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    requestSustainedPerformance()
     val requestedSlot = intent?.getIntExtra(EXTRA_AUTO_LOAD_SNAPSHOT_SLOT, 0) ?: 0
     if (requestedSlot in 1..TOTAL_SNAPSHOT_SLOTS) {
       startupSnapshotSlot = requestedSlot
@@ -212,6 +213,22 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBr
       swipeUpGestureRecognizer.reset()
     }
     return super.dispatchTouchEvent(event)
+  }
+
+  private fun requestSustainedPerformance() {
+    // Tells the system to hold clocks at a steady, sustainable level
+    // instead of bursting and thermal-throttling. Thor has good cooling
+    // and runs emulation for long stretches, which is exactly the case
+    // this API was built for. No-op on devices that don't support it.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+    try {
+      val power = getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+      if (power?.isSustainedPerformanceModeSupported == true) {
+        window.setSustainedPerformanceMode(true)
+      }
+    } catch (_: Throwable) {
+      // Some OEMs throw on this check; safe to ignore.
+    }
   }
 
   private fun hideSystemUI() {
@@ -335,6 +352,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBr
     }
     OrientationLocker(this, landscapeOnly = true).enable()
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    requestSustainedPerformance()
     mLayout?.keepScreenOn = true
     
     // Register virtual controller after SDL is initialized
