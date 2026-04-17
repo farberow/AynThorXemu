@@ -51,6 +51,22 @@
     app:layout_constraintTop_toTopOf="@id/dashboard_brand"
     app:layout_constraintBottom_toBottomOf="@id/dashboard_brand" />
 
+  <!-- Auto-iterating build stamp. Reads BuildConfig.AUTO_BUILD_NUMBER so each
+       APK gets a unique integer visible at a glance while testing. -->
+  <TextView
+    android:id="@+id/dashboard_build_number"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="build —"
+    android:textAppearance="@style/TextAppearance.Xemu.Label"
+    android:textColor="@color/xemu_text_muted"
+    android:textSize="10sp"
+    android:fontFeatureSettings="tnum"
+    android:letterSpacing="0.04"
+    app:layout_constraintEnd_toStartOf="@id/dashboard_column_divider"
+    app:layout_constraintTop_toTopOf="@id/dashboard_brand_wedge"
+    app:layout_constraintBottom_toBottomOf="@id/dashboard_brand_wedge" />
+
   <!-- Stats row — FPS hero + CPU/GPU small, all inline -->
   <LinearLayout
     android:id="@+id/dashboard_stats"

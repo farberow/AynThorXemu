@@ -28,6 +28,7 @@ class BottomScreenPresentation(
   private var cpuValue: TextView? = null
   private var gpuValue: TextView? = null
   private var statusLabel: TextView? = null
+  private var buildBadge: TextView? = null
   private var slotLabel: TextView? = null
   private var slotPrev: MaterialButton? = null
   private var slotNext: MaterialButton? = null
@@ -65,6 +66,8 @@ class BottomScreenPresentation(
     cpuValue = findViewById(R.id.dashboard_cpu_value)
     gpuValue = findViewById(R.id.dashboard_gpu_value)
     statusLabel = findViewById(R.id.dashboard_status)
+    buildBadge = findViewById(R.id.dashboard_build_number)
+    buildBadge?.text = formatBuildBadge()
     slotLabel = findViewById(R.id.dashboard_slot_label)
     slotPrev = findViewById(R.id.dashboard_slot_prev)
     slotNext = findViewById(R.id.dashboard_slot_next)
@@ -171,6 +174,13 @@ class BottomScreenPresentation(
 
   private fun persistSlot() {
     prefs.edit().putInt(PREF_SLOT, slot).apply()
+  }
+
+  /** "build 42 • 1.2.4" — zero means the counter hasn't run yet. */
+  private fun formatBuildBadge(): String {
+    val n = BuildConfig.AUTO_BUILD_NUMBER
+    val v = BuildConfig.VERSION_NAME
+    return if (n <= 0) "build — • $v" else "build $n • $v"
   }
 
   companion object {

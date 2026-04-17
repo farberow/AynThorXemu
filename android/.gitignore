@@ -12,3 +12,6 @@ app/.cxx/
 # OS
 .DS_Store
 Thumbs.db
+
+# Auto-bumped local build counter (per-developer)
+app/build_number.txt

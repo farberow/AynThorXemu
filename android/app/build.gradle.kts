@@ -37,6 +37,29 @@ val hostPython3 = sequenceOf(
   "/usr/bin/python3",
 ).filterNotNull().firstOrNull { isUsablePython3(it) }
 
+// Auto-iterating local build counter. Bumped by one each time we actually
+// assemble an APK/bundle or install onto a device, so every build handed to a
+// tester has a unique integer you can read off the bottom screen. The file is
+// gitignored — each developer's counter is their own.
+val buildNumberFile = file("build_number.txt")
+val autoBuildNumber: Int = run {
+  val current = buildNumberFile
+    .takeIf { it.exists() }
+    ?.readText()?.trim()?.toIntOrNull() ?: 0
+  val invoked = gradle.startParameter.taskNames.joinToString(" ").lowercase()
+  val touchesDevice = listOf(
+    "assemble", "install", "bundle", "rundebug"
+  ).any { it in invoked }
+  if (touchesDevice) {
+    val next = current + 1
+    buildNumberFile.parentFile?.mkdirs()
+    buildNumberFile.writeText(next.toString())
+    next
+  } else {
+    current
+  }
+}
+
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 val hasKeystoreProperties = keystorePropertiesFile.exists()
@@ -56,6 +79,10 @@ android {
   buildToolsVersion = "36.1.0"
   ndkVersion = "29.0.14206865"
 
+  buildFeatures {
+    buildConfig = true
+  }
+
   defaultConfig {
     applicationId = "com.izzy2lost.x1box"
     minSdk = 26
@@ -63,6 +90,8 @@ android {
 
     versionCode = 25
     versionName = "1.2.4"
+
+    buildConfigField("int", "AUTO_BUILD_NUMBER", "$autoBuildNumber")
 
     ndk {
       abiFilters += listOf("arm64-v8a")
@@ -78,7 +107,7 @@ android {
         val thorReleaseFlags =
           "-O3 -g0 -fvisibility=hidden -mcpu=cortex-x3 -fno-math-errno"
         arguments += listOf(
-          "-DXEMU_ANDROID_BUILD_ID=3",
+          "-DXEMU_ANDROID_BUILD_ID=$autoBuildNumber",
           "-DXEMU_ENABLE_XISO_CONVERTER=ON",
           "-DCMAKE_C_FLAGS_DEBUG=-O2 -g0",
           "-DCMAKE_CXX_FLAGS_DEBUG=-O2 -g0",
