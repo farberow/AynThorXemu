@@ -28,10 +28,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="14dp"
-        app:strokeColor="@color/xemu_outline"
-        app:strokeWidth="2dp">
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp"
+        app:strokeColor="@color/xemu_green_700"
+        app:strokeWidth="1dp">
 
         <LinearLayout
           android:layout_width="match_parent"
@@ -43,7 +43,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/per_game_settings_title"
-            android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" />
+            android:textAppearance="@style/TextAppearance.Xemu.Display" />
 
           <TextView
             android:id="@+id/tv_per_game_settings_game_title"
@@ -92,8 +92,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_display"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/input_per_game_renderer"
@@ -211,8 +210,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_performance"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/input_per_game_system_memory"
@@ -354,8 +352,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_audio"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/input_per_game_use_dsp"
@@ -417,8 +414,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_online"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/input_per_game_network_enable"

@@ -80,13 +80,114 @@
     <item name="cornerSize">24dp</item>
   </style>
 
-  <!-- ── Card ── -->
+  <!--
+    Wedge: diagonal cuts on opposing corners (top-left + bottom-right) with
+    small rounds on the other two. This is the Xbox blade geometry — use on
+    hero CTAs and brand surfaces only, not routine buttons.
+  -->
+  <style name="ShapeAppearance.Xemu.Wedge" parent="">
+    <item name="cornerFamily">rounded</item>
+    <item name="cornerSizeTopLeft">0dp</item>
+    <item name="cornerSizeBottomRight">0dp</item>
+    <item name="cornerSizeTopRight">4dp</item>
+    <item name="cornerSizeBottomLeft">4dp</item>
+    <item name="cornerFamilyTopLeft">cut</item>
+    <item name="cornerFamilyBottomRight">cut</item>
+  </style>
+
+  <!--
+    Wedge (cut sizes restored on one side). Material shape families don't
+    mix cut + rounded per-corner via cornerFamily alone; overlay applies
+    the cut amount. Keep this as the canonical hero shape.
+  -->
+  <style name="ShapeAppearanceOverlay.Xemu.Wedge" parent="">
+    <item name="cornerFamilyTopLeft">cut</item>
+    <item name="cornerFamilyBottomRight">cut</item>
+    <item name="cornerSizeTopLeft">14dp</item>
+    <item name="cornerSizeBottomRight">14dp</item>
+    <item name="cornerSizeTopRight">4dp</item>
+    <item name="cornerSizeBottomLeft">4dp</item>
+  </style>
+
+  <!-- ── Typography (HUD / display / label scale) ── -->
+
+  <!--
+    No custom font bundled yet (would require TTF asset or Downloadable
+    Fonts setup). Until then, use sans-serif-condensed with heavy weight
+    and wide letter-spacing for display/title, and monospace only for
+    numeric readouts (FPS, thermals, slot index). This is a typography
+    pass, not a font pass — swap fontFamily here when a font ships.
+  -->
+  <style name="TextAppearance.Xemu.Display" parent="TextAppearance.Material3.HeadlineMedium">
+    <item name="android:fontFamily">sans-serif-condensed</item>
+    <item name="android:textFontWeight">900</item>
+    <item name="android:textAllCaps">true</item>
+    <item name="android:letterSpacing">0.08</item>
+    <item name="android:textColor">@color/xemu_text</item>
+  </style>
+
+  <style name="TextAppearance.Xemu.Title" parent="TextAppearance.Material3.TitleLarge">
+    <item name="android:fontFamily">sans-serif-condensed</item>
+    <item name="android:textFontWeight">700</item>
+    <item name="android:textAllCaps">true</item>
+    <item name="android:letterSpacing">0.06</item>
+    <item name="android:textColor">@color/xemu_text</item>
+  </style>
+
+  <style name="TextAppearance.Xemu.Section" parent="TextAppearance.Material3.LabelLarge">
+    <item name="android:fontFamily">sans-serif-condensed</item>
+    <item name="android:textFontWeight">800</item>
+    <item name="android:textAllCaps">true</item>
+    <item name="android:letterSpacing">0.24</item>
+    <item name="android:textColor">@color/xemu_green_300</item>
+    <item name="android:textSize">12sp</item>
+  </style>
+
+  <style name="TextAppearance.Xemu.Label" parent="TextAppearance.Material3.LabelMedium">
+    <item name="android:fontFamily">sans-serif-condensed</item>
+    <item name="android:textFontWeight">700</item>
+    <item name="android:textAllCaps">true</item>
+    <item name="android:letterSpacing">0.18</item>
+    <item name="android:textColor">@color/xemu_text_muted</item>
+  </style>
+
+  <style name="TextAppearance.Xemu.Body" parent="TextAppearance.Material3.BodyMedium">
+    <item name="android:textColor">@color/xemu_text</item>
+  </style>
+
+  <!-- Monospace reserved for live numeric readouts only. -->
+  <style name="TextAppearance.Xemu.Hud.Number" parent="TextAppearance.Material3.DisplaySmall">
+    <item name="android:fontFamily">monospace</item>
+    <item name="android:textColor">@color/xemu_green_500</item>
+    <item name="android:textSize">56sp</item>
+  </style>
+
+  <style name="TextAppearance.Xemu.Hud.NumberSmall" parent="TextAppearance.Material3.HeadlineSmall">
+    <item name="android:fontFamily">monospace</item>
+    <item name="android:textColor">@color/xemu_text</item>
+    <item name="android:textSize">32sp</item>
+  </style>
+
+  <!--
+    Card — softened from the earlier "neon frame box" look. Stroke is dim
+    green (green_700, 1dp) so grouping reads without shouting. The bold
+    green is reserved for accents (section headers, active states, HUD
+    numbers), not for the container's own outline.
+  -->
   <style name="Widget.Xemu.CardView" parent="Widget.Material3.CardView.Filled">
     <item name="cardBackgroundColor">@color/xemu_surface</item>
-    <item name="cardCornerRadius">28dp</item>
+    <item name="cardCornerRadius">20dp</item>
+    <item name="cardElevation">8dp</item>
+    <item name="strokeColor">@color/xemu_green_700</item>
+    <item name="strokeWidth">1dp</item>
+  </style>
+
+  <!-- Hero card — wedge geometry, for brand surfaces only. -->
+  <style name="Widget.Xemu.CardView.Hero" parent="Widget.Xemu.CardView">
+    <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.Xemu.Wedge</item>
+    <item name="strokeColor">@color/xemu_green_500</item>
+    <item name="strokeWidth">1.5dp</item>
     <item name="cardElevation">12dp</item>
-    <item name="strokeColor">@color/xemu_outline</item>
-    <item name="strokeWidth">2dp</item>
   </style>
 
   <!-- ── Filled Button (M3 Expressive pill + spring press) ── -->
@@ -123,6 +224,47 @@
 
   <style name="Widget.Xemu.Button.Outlined.Pill" parent="Widget.Xemu.Button.Outlined">
     <item name="shapeAppearance">@style/ShapeAppearance.Xemu.Pill</item>
+    <item name="android:stateListAnimator">@animator/button_press_spring</item>
+  </style>
+
+  <!--
+    Wedge CTA — hero-only. Classic Xbox blade geometry: angled cut on the
+    top-left + bottom-right, tiny rounds elsewhere. Use sparingly: one
+    per screen max (primary action, boot dashboard, start emulation).
+  -->
+  <style name="Widget.Xemu.Button.Wedge" parent="Widget.Material3.Button">
+    <item name="android:minHeight">56dp</item>
+    <item name="android:paddingStart">28dp</item>
+    <item name="android:paddingEnd">28dp</item>
+    <item name="backgroundTint">@color/xemu_green_500</item>
+    <item name="android:textColor">@color/xemu_black</item>
+    <item name="android:fontFamily">sans-serif-condensed</item>
+    <item name="android:textFontWeight">800</item>
+    <item name="android:textAllCaps">true</item>
+    <item name="android:letterSpacing">0.12</item>
+    <item name="iconTint">@color/xemu_black</item>
+    <item name="iconSize">24dp</item>
+    <item name="rippleColor">@color/xemu_green_100</item>
+    <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.Xemu.Wedge</item>
+    <item name="android:stateListAnimator">@animator/button_press_spring</item>
+  </style>
+
+  <!-- Wedge outlined variant for secondary hero actions. -->
+  <style name="Widget.Xemu.Button.Wedge.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+    <item name="android:minHeight">56dp</item>
+    <item name="android:paddingStart">28dp</item>
+    <item name="android:paddingEnd">28dp</item>
+    <item name="android:textColor">@color/xemu_text</item>
+    <item name="android:fontFamily">sans-serif-condensed</item>
+    <item name="android:textFontWeight">800</item>
+    <item name="android:textAllCaps">true</item>
+    <item name="android:letterSpacing">0.12</item>
+    <item name="iconTint">@color/xemu_text</item>
+    <item name="iconSize">24dp</item>
+    <item name="strokeColor">@color/xemu_green_700</item>
+    <item name="strokeWidth">1.5dp</item>
+    <item name="rippleColor">@color/xemu_green_500</item>
+    <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.Xemu.Wedge</item>
     <item name="android:stateListAnimator">@animator/button_press_spring</item>
   </style>
 
