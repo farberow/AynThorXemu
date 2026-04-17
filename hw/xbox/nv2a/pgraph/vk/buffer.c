@@ -85,9 +85,9 @@ static MemoryBudget compute_memory_budget(PGRAPHVkState *r)
         b.perframe_uni_cap = SIZE_MAX;
         b.perframe_stg_cap = SIZE_MAX;
         b.shader_module_cache_entries = 50 * 1024;
-        b.texture_cache_entries = 1024;
-        b.image_pool_max = 128;
-        b.surface_image_pool_max = 64;
+        b.texture_cache_entries = 2048;
+        b.image_pool_max = 192;
+        b.surface_image_pool_max = 96;
     } else {
         size_t budget = b.renderer_budget;
         b.vertex_inline_cap = MAX(8 * mib, budget / 5);
@@ -107,18 +107,23 @@ static MemoryBudget compute_memory_budget(PGRAPHVkState *r)
             b.shader_module_cache_entries = 50 * 1024;
         }
 
+        /* Texture- and surface-heavy titles (Fable, Conker: Live &
+         * Reloaded, Ninja Gaiden) churn a wider working set than the
+         * old defaults. Grow the caches so in-flight slots don't stall
+         * the bind path. Costs metadata + a few extra VkImages — well
+         * within the per-tier memory budget. */
         if (budget_mib <= 768) {
-            b.texture_cache_entries = 256;
-            b.image_pool_max = 16;
-            b.surface_image_pool_max = 8;
+            b.texture_cache_entries = 384;
+            b.image_pool_max = 24;
+            b.surface_image_pool_max = 12;
         } else if (budget_mib <= 1536) {
-            b.texture_cache_entries = 512;
-            b.image_pool_max = 32;
-            b.surface_image_pool_max = 16;
+            b.texture_cache_entries = 768;
+            b.image_pool_max = 48;
+            b.surface_image_pool_max = 24;
         } else {
-            b.texture_cache_entries = 1024;
-            b.image_pool_max = 64;
-            b.surface_image_pool_max = 32;
+            b.texture_cache_entries = 2048;
+            b.image_pool_max = 128;
+            b.surface_image_pool_max = 64;
         }
     }
 
