@@ -16,7 +16,7 @@ import java.io.File
 class BottomScreenPresentation(
   val ownerContext: Context,
   display: Display
-) : Presentation(ownerContext, display) {
+) : Presentation(ownerContext, display, R.style.Theme_Xemu) {
 
   private val handler = Handler(Looper.getMainLooper())
   private val prefs = ownerContext.getSharedPreferences("x1box_prefs", Context.MODE_PRIVATE)

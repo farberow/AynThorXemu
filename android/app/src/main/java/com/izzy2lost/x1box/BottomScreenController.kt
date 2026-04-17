@@ -5,6 +5,7 @@ import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Display
 
 /**
@@ -75,7 +76,12 @@ class BottomScreenController(private val app: Context) {
   }
 
   private fun showOn(activity: Activity) {
-    val target = findBottomDisplay() ?: return
+    val target = findBottomDisplay()
+    if (target == null) {
+      Log.i(TAG, "no bottom display found")
+      return
+    }
+    Log.i(TAG, "showOn activity=${activity::class.java.simpleName} display=${target.displayId}")
     val existing = presentation
     if (existing != null) {
       val sameDisplay = existing.display.displayId == target.displayId
@@ -85,11 +91,19 @@ class BottomScreenController(private val app: Context) {
     }
     val p = BottomScreenPresentation(activity, target)
     presentation = p
-    runCatching {
+    try {
       p.show()
       p.setFps(lastFps)
       p.setEmulatorBridge(emulatorBridge)
-    }.onFailure { presentation = null }
+      Log.i(TAG, "presentation shown")
+    } catch (t: Throwable) {
+      Log.e(TAG, "presentation show failed", t)
+      presentation = null
+    }
+  }
+
+  companion object {
+    private const val TAG = "BottomScreen"
   }
 
   private fun findBottomDisplay(): Display? {
