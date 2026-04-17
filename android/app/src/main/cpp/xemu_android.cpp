@@ -1098,7 +1098,16 @@ static void xemu_pin_to_big_cores_cpp(const char *label) {
   }
   if (max_freq == 0) return;
 
-  unsigned long threshold = max_freq * 9 / 10;
+  /*
+   * Use 80% of max freq as the cutoff for "big" cores. On SD 8G2 the
+   * Cortex-X3 runs at 3.2 GHz and the A715/A710 cluster runs at 2.8 GHz
+   * (87.5% of max). The old 90% cutoff would land only on the single X3
+   * prime core — both the QEMU CPU thread and the NV2A pfifo thread would
+   * then fight for that one core. 80% captures the whole big cluster
+   * (X3 + A715 + A710 = 5 cores on SD 8G2) while still excluding the
+   * A510 efficiency cores at 2.0 GHz (62.5%).
+   */
+  unsigned long threshold = max_freq * 8 / 10;
   unsigned long mask = 0;
   int big_count = 0;
   for (int i = 0; i < ncpus && i < (int)(sizeof(mask) * 8); i++) {

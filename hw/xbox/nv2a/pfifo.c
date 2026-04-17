@@ -68,7 +68,15 @@ static void xemu_pin_to_big_cores(const char *label)
 
     if (max_freq == 0) return;
 
-    unsigned long threshold = max_freq * 9 / 10;
+    /*
+     * 80% of the prime-core clock, not 90%. SD 8G2 has X3 at 3.2 GHz and
+     * A715/A710 at 2.8 GHz (87.5%), so 90% would leave only the X3 in the
+     * pool — and that's the same core the CPU emulation thread wants.
+     * Widening the mask to the full big cluster lets the scheduler
+     * separate the two hot threads while still avoiding the A510
+     * efficiency cores.
+     */
+    unsigned long threshold = max_freq * 8 / 10;
     /* Build affinity mask manually (avoid cpu_set_t header issues on bionic) */
     unsigned long mask = 0;
     int big_count = 0;
