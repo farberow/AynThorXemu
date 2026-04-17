@@ -8,6 +8,8 @@ import android.os.Looper
 import android.view.Display
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.AnimationUtils
+import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -21,6 +23,7 @@ class BottomScreenPresentation(
   private val handler = Handler(Looper.getMainLooper())
   private val prefs = ownerContext.getSharedPreferences("x1box_prefs", Context.MODE_PRIVATE)
 
+  private var brandX: ImageView? = null
   private var fpsValue: TextView? = null
   private var cpuValue: TextView? = null
   private var gpuValue: TextView? = null
@@ -54,6 +57,9 @@ class BottomScreenPresentation(
       WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
     )
     setContentView(R.layout.bottom_dashboard)
+
+    brandX = findViewById(R.id.dashboard_brand_wedge)
+    brandX?.startAnimation(AnimationUtils.loadAnimation(context, R.anim.x_mark_idle_pulse))
 
     fpsValue = findViewById(R.id.dashboard_fps_value)
     cpuValue = findViewById(R.id.dashboard_cpu_value)
@@ -142,6 +148,11 @@ class BottomScreenPresentation(
         if (enabled) R.color.xemu_green else R.color.xemu_text_muted, null
       )
     )
+    if (enabled) {
+      statusLabel?.startAnimation(AnimationUtils.loadAnimation(context, R.anim.status_active_pulse))
+    } else {
+      statusLabel?.clearAnimation()
+    }
   }
 
   private fun renderSlot() {
