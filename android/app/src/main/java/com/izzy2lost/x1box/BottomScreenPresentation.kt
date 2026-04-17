@@ -81,11 +81,13 @@ class BottomScreenPresentation(
       slot = if (slot <= 1) TOTAL_SLOTS else slot - 1
       persistSlot()
       renderSlot()
+      flashSlot()
     }
     slotNext?.setOnClickListener {
       slot = if (slot >= TOTAL_SLOTS) 1 else slot + 1
       persistSlot()
       renderSlot()
+      flashSlot()
     }
 
     saveBtn?.setOnClickListener { bridge?.saveSnapshot(slot) }
@@ -157,6 +159,10 @@ class BottomScreenPresentation(
 
   private fun renderSlot() {
     slotLabel?.text = "SLOT $slot"
+  }
+
+  private fun flashSlot() {
+    slotLabel?.startAnimation(AnimationUtils.loadAnimation(context, R.anim.slot_change_flash))
   }
 
   private fun renderPause() {

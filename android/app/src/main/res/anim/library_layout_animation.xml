@@ -1,0 +1,8 @@
+<!--
+  Stagger game rows by 40ms as they mount. Feels like the dashboard is
+  assembling itself in front of you, Xbox-ish without being literal.
+-->
+<layoutAnimation xmlns:android="http://schemas.android.com/apk/res/android"
+  android:animation="@anim/library_item_enter"
+  android:animationOrder="normal"
+  android:delay="40%" />
