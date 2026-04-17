@@ -73,6 +73,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBr
   private var startupSnapshotSlot: Int? = null
   private var startupSnapshotLoadScheduled = false
   private val controllerSettings by lazy { ControllerSettings(this) }
+  private val controllerRemapSettings by lazy { ControllerRemapSettings(this) }
   private lateinit var swipeUpGestureRecognizer: SwipeUpGestureRecognizer
   private var fpsTextView: TextView? = null
   private val fpsHandler = Handler(Looper.getMainLooper())
@@ -195,6 +196,9 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBr
     }
 
     if (handleGamepadMenuCombo(event)) {
+      return true
+    }
+    if (handleRemappedPhysicalGamepadKeyEvent(event)) {
       return true
     }
     return super.dispatchKeyEvent(event)
@@ -532,6 +536,30 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener, EmulatorBr
 
   fun forceUpdateControllerVisibility() {
     checkForPhysicalControllers()
+  }
+
+  private fun handleRemappedPhysicalGamepadKeyEvent(event: KeyEvent): Boolean {
+    if (!isGamepadKeyEvent(event) || event.deviceId == ControllerInputBridge.VIRTUAL_DEVICE_ID) {
+      return false
+    }
+    if (!controllerRemapSettings.handlesKeyCode(event.keyCode)) {
+      return false
+    }
+
+    val mappedKeyCode = controllerRemapSettings.mapInputKeyCode(event.keyCode)
+    if (mappedKeyCode == null) {
+      return true
+    }
+
+    return when (event.action) {
+      KeyEvent.ACTION_DOWN -> {
+        org.libsdl.app.SDLControllerManager.onNativePadDown(event.deviceId, mappedKeyCode) == 0
+      }
+      KeyEvent.ACTION_UP -> {
+        org.libsdl.app.SDLControllerManager.onNativePadUp(event.deviceId, mappedKeyCode) == 0
+      }
+      else -> false
+    }
   }
 
   private fun handleGamepadMenuCombo(event: KeyEvent): Boolean {

@@ -189,6 +189,7 @@ class SettingsActivity : AppCompatActivity() {
   private lateinit var btnPrepareInsignia: MaterialButton
   private lateinit var btnRegisterInsignia: MaterialButton
   private lateinit var btnImportDashboard: MaterialButton
+  private lateinit var btnOpenControllerRemapping: MaterialButton
   private lateinit var switchShowOnScreenController: MaterialSwitch
   private lateinit var tvControllerMappingStatus: TextView
   private lateinit var btnImportControllerMappings: MaterialButton
@@ -345,6 +346,7 @@ class SettingsActivity : AppCompatActivity() {
     btnPrepareInsignia   = findViewById(R.id.btn_prepare_insignia)
     btnRegisterInsignia  = findViewById(R.id.btn_register_insignia)
     btnImportDashboard   = findViewById(R.id.btn_import_dashboard)
+    btnOpenControllerRemapping = findViewById(R.id.btn_open_controller_remapping)
     switchShowOnScreenController = findViewById(R.id.switch_show_on_screen_controller)
     tvControllerMappingStatus = findViewById(R.id.tv_controller_mapping_status)
     btnImportControllerMappings = findViewById(R.id.btn_import_controller_mappings)
@@ -464,6 +466,9 @@ class SettingsActivity : AppCompatActivity() {
 
     switchShowOnScreenController.isChecked = controllerSettings.showOnScreenController
     refreshControllerMappingsStatus()
+    btnOpenControllerRemapping.setOnClickListener {
+      startActivity(Intent(this, ControllerMappingActivity::class.java))
+    }
     btnImportControllerMappings.setOnClickListener {
       importControllerMappingsDocument.launch(arrayOf("text/*", "application/octet-stream", "*/*"))
     }
@@ -1065,12 +1070,15 @@ class SettingsActivity : AppCompatActivity() {
   }
 
   private fun refreshControllerMappingsStatus() {
+    val remapSettings = ControllerRemapSettings(this)
     val mappingFile = ControllerMappingFiles.resolveFile(this)
     val hasMappings = mappingFile.isFile && mappingFile.length() > 0L
-    tvControllerMappingStatus.text = if (hasMappings) {
+    tvControllerMappingStatus.text = if (remapSettings.countCustomizations() > 0) {
+      getString(R.string.settings_controller_remapping_status_custom, remapSettings.countCustomizations())
+    } else if (hasMappings) {
       getString(R.string.settings_controller_mappings_status_installed, mappingFile.name)
     } else {
-      getString(R.string.settings_controller_mappings_status_none)
+      getString(R.string.settings_controller_remapping_status_default)
     }
     btnClearControllerMappings.isEnabled = hasMappings
   }

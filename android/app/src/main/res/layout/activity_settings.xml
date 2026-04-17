@@ -69,7 +69,7 @@
             android:id="@+id/switch_show_on_screen_controller"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
+            android:layout_marginBottom="10dp"
             android:text="@string/settings_show_on_screen_controller"
             android:textColor="@color/xemu_text_muted" />
 
@@ -79,6 +79,22 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="10dp"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:textColor="@color/xemu_text_muted" />
+
+          <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_open_controller_remapping"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="@string/settings_open_controller_remapping" />
+
+          <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:text="@string/settings_controller_mappings_advanced_hint"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
             android:textColor="@color/xemu_text_muted" />
 
           <LinearLayout
