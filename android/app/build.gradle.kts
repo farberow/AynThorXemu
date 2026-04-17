@@ -6,6 +6,37 @@ plugins {
   id("org.jetbrains.kotlin.android")
 }
 
+fun Project.isUsablePython3(path: String): Boolean {
+  if (path.isBlank() || !file(path).canExecute()) {
+    return false
+  }
+
+  return try {
+    val process = ProcessBuilder(
+      path,
+      "-c",
+      "import sys; print('{}.{}'.format(*sys.version_info[:2]))",
+    ).start()
+    val stdout = process.inputStream.bufferedReader().use { it.readText().trim() }
+    process.errorStream.close()
+    process.waitFor() == 0 && run {
+      val match = Regex("""^3\.(\d+)$""").matchEntire(stdout)
+      match != null && match.groupValues[1].toInt() >= 6
+    }
+  } catch (_: Exception) {
+    false
+  }
+}
+
+val hostPython3 = sequenceOf(
+  System.getenv("PYTHON3"),
+  "/opt/homebrew/bin/python3",
+  "/usr/local/bin/python3",
+  "/Library/Developer/CommandLineTools/usr/bin/python3",
+  "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+  "/usr/bin/python3",
+).filterNotNull().firstOrNull { isUsablePython3(it) }
+
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 val hasKeystoreProperties = keystorePropertiesFile.exists()
@@ -48,6 +79,9 @@ android {
           "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g0 -fvisibility=hidden",
           "-DCMAKE_C_FLAGS_RELEASE=-O2 -g0 -fvisibility=hidden",
           "-DCMAKE_CXX_FLAGS_RELEASE=-O2 -g0 -fvisibility=hidden",
+        ) + listOfNotNull(
+          hostPython3?.let { "-DPython3_EXECUTABLE=$it" },
+          hostPython3?.let { "-DPYTHON_EXECUTABLE=$it" },
         )
         cppFlags += listOf("-std=c++17", "-fexceptions", "-frtti")
       }

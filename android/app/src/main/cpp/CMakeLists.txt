@@ -9,9 +9,56 @@ include(FetchContent)
 include(ExternalProject)
 
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../../../.." ABSOLUTE)
-find_program(PYTHON_EXECUTABLE NAMES python python3)
+
+# QAPI/tracetool scripts require Python 3 syntax. Prefer explicit host Python 3
+# installs on macOS so Android Studio doesn't accidentally pick a legacy
+# interpreter or a non-functional Xcode shim.
+set(PYTHON_VERSION_STRING "")
+if(NOT PYTHON_EXECUTABLE AND APPLE)
+  find_program(
+    PYTHON_EXECUTABLE
+    NAMES python3
+    HINTS
+      /opt/homebrew/bin
+      /usr/local/bin
+      /Library/Developer/CommandLineTools/usr/bin
+      /Applications/Xcode.app/Contents/Developer/usr/bin
+      /usr/bin
+    NO_DEFAULT_PATH
+  )
+endif()
+
 if(NOT PYTHON_EXECUTABLE)
-  message(FATAL_ERROR "python not found in PATH; required for QAPI/trace generation")
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND)
+    set(PYTHON_EXECUTABLE "${Python3_EXECUTABLE}")
+    set(PYTHON_VERSION_STRING "${Python3_VERSION}")
+  else()
+    find_program(PYTHON_EXECUTABLE NAMES python3 python)
+  endif()
+endif()
+
+if(PYTHON_EXECUTABLE AND NOT PYTHON_VERSION_STRING)
+  execute_process(
+    COMMAND "${PYTHON_EXECUTABLE}" -c
+            "import sys; print('{}.{}.{}'.format(*sys.version_info[:3]))"
+    OUTPUT_VARIABLE PYTHON_VERSION_STRING
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE PYTHON_VERSION_RESULT
+  )
+  if(NOT PYTHON_VERSION_RESULT EQUAL 0)
+    set(PYTHON_VERSION_STRING "")
+  endif()
+endif()
+
+if(NOT PYTHON_EXECUTABLE)
+  message(FATAL_ERROR "Python 3 interpreter not found in PATH; required for QAPI/trace generation")
+endif()
+
+if(PYTHON_VERSION_STRING VERSION_LESS 3.6)
+  message(FATAL_ERROR
+    "Python 3.6+ is required for QAPI/trace generation, but CMake selected "
+    "'${PYTHON_EXECUTABLE}' (${PYTHON_VERSION_STRING})")
 endif()
 
 option(XEMU_ENABLE_VULKAN "Enable Vulkan renderer" ON)
@@ -20,18 +67,49 @@ option(XEMU_OPT_NATIVE_FLOAT "Enable native ARM64 float operations for SSE/FPU" 
 option(XEMU_OPT_TCG_PEEPHOLE "Enable TCG optimizer setcond+brcond peephole fusion" OFF)
 option(XEMU_OPT_TB_CACHE_HINTS "Enable persistent TB cache hints (pre-warm on load)" OFF)
 
-find_program(CARGO_EXECUTABLE NAMES cargo cargo.exe)
-if(CARGO_EXECUTABLE MATCHES "-NOTFOUND$" OR NOT CARGO_EXECUTABLE)
-  if(DEFINED ENV{USERPROFILE})
-    file(TO_CMAKE_PATH "$ENV{USERPROFILE}/.cargo/bin/cargo.exe" CARGO_USERPROFILE_BIN)
-    if(EXISTS "${CARGO_USERPROFILE_BIN}")
-      set(CARGO_EXECUTABLE "${CARGO_USERPROFILE_BIN}" CACHE FILEPATH "Path to cargo executable" FORCE)
-    endif()
+set(RUSTC_EXECUTABLE "")
+set(CARGO_EXECUTABLE "")
+if(DEFINED ENV{HOME})
+  file(TO_CMAKE_PATH "$ENV{HOME}/.cargo/bin/cargo" CARGO_HOME_BIN)
+  if(EXISTS "${CARGO_HOME_BIN}")
+    set(CARGO_EXECUTABLE "${CARGO_HOME_BIN}")
   endif()
+  file(TO_CMAKE_PATH "$ENV{HOME}/.cargo/bin/rustc" RUSTC_HOME_BIN)
+  if(EXISTS "${RUSTC_HOME_BIN}")
+    set(RUSTC_EXECUTABLE "${RUSTC_HOME_BIN}")
+  endif()
+endif()
+if(NOT CARGO_EXECUTABLE AND DEFINED ENV{USERPROFILE})
+  file(TO_CMAKE_PATH "$ENV{USERPROFILE}/.cargo/bin/cargo.exe" CARGO_USERPROFILE_BIN)
+  if(EXISTS "${CARGO_USERPROFILE_BIN}")
+    set(CARGO_EXECUTABLE "${CARGO_USERPROFILE_BIN}")
+  endif()
+endif()
+if(NOT RUSTC_EXECUTABLE AND DEFINED ENV{USERPROFILE})
+  file(TO_CMAKE_PATH "$ENV{USERPROFILE}/.cargo/bin/rustc.exe" RUSTC_USERPROFILE_BIN)
+  if(EXISTS "${RUSTC_USERPROFILE_BIN}")
+    set(RUSTC_EXECUTABLE "${RUSTC_USERPROFILE_BIN}")
+  endif()
+endif()
+if(NOT CARGO_EXECUTABLE)
+  find_program(CARGO_EXECUTABLE NAMES cargo cargo.exe)
+endif()
+if(NOT RUSTC_EXECUTABLE)
+  find_program(RUSTC_EXECUTABLE NAMES rustc rustc.exe)
+endif()
+if(CARGO_EXECUTABLE)
+  set(CARGO_EXECUTABLE "${CARGO_EXECUTABLE}" CACHE FILEPATH "Path to cargo executable" FORCE)
+endif()
+if(RUSTC_EXECUTABLE)
+  set(RUSTC_EXECUTABLE "${RUSTC_EXECUTABLE}" CACHE FILEPATH "Path to rustc executable" FORCE)
 endif()
 set(XEMU_XISO_CONVERTER_BUILD_ENABLED ${XEMU_ENABLE_XISO_CONVERTER})
 if(XEMU_XISO_CONVERTER_BUILD_ENABLED AND NOT CARGO_EXECUTABLE)
   message(WARNING "cargo not found in PATH; disabling XISO converter")
+  set(XEMU_XISO_CONVERTER_BUILD_ENABLED OFF)
+endif()
+if(XEMU_XISO_CONVERTER_BUILD_ENABLED AND NOT RUSTC_EXECUTABLE)
+  message(WARNING "rustc not found in PATH; disabling XISO converter")
   set(XEMU_XISO_CONVERTER_BUILD_ENABLED OFF)
 endif()
 
@@ -252,6 +330,7 @@ if(XEMU_XISO_CONVERTER_BUILD_ENABLED)
       "CARGO_TARGET_DIR=${XISO_CONVERTER_RS_TARGET_DIR}"
       "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=${XISO_CONVERTER_RS_LINKER}"
       "CARGO_TARGET_AARCH64_LINUX_ANDROID_AR=${XISO_CONVERTER_RS_AR}"
+      "RUSTC=${RUSTC_EXECUTABLE}"
       ${XISO_CONVERTER_CARGO_ENV_VARS}
       "${CARGO_EXECUTABLE}" build
       --manifest-path "${XISO_CONVERTER_RS_DIR}/Cargo.toml"
