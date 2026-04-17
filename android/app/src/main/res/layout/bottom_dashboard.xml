@@ -59,11 +59,74 @@
     app:layout_constraintStart_toStartOf="@id/dashboard_fps_label"
     app:layout_constraintTop_toBottomOf="@id/dashboard_fps_label" />
 
+  <LinearLayout
+    android:id="@+id/dashboard_thermals"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginEnd="24dp"
+    android:layout_marginTop="32dp"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_subtitle">
+
+    <LinearLayout
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:layout_marginEnd="32dp">
+
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CPU"
+        android:textColor="@color/xemu_text_muted"
+        android:textSize="14sp"
+        android:letterSpacing="0.2"
+        android:fontFamily="monospace" />
+
+      <TextView
+        android:id="@+id/dashboard_cpu_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textColor="@color/xemu_text"
+        android:textSize="32sp"
+        android:fontFamily="monospace" />
+
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:orientation="vertical">
+
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GPU"
+        android:textColor="@color/xemu_text_muted"
+        android:textSize="14sp"
+        android:letterSpacing="0.2"
+        android:fontFamily="monospace" />
+
+      <TextView
+        android:id="@+id/dashboard_gpu_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textColor="@color/xemu_text"
+        android:textSize="32sp"
+        android:fontFamily="monospace" />
+
+    </LinearLayout>
+
+  </LinearLayout>
+
   <TextView
     android:id="@+id/dashboard_placeholder"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="save state · quick toggles · thermals coming soon"
+    android:text="save state · quick toggles coming soon"
     android:textColor="@color/xemu_text_muted"
     android:textSize="11sp"
     android:fontFamily="monospace"

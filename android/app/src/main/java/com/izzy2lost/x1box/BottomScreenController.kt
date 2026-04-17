@@ -23,6 +23,12 @@ class BottomScreenController(private val app: Context) {
 
   private var resumedActivity: Activity? = null
   private var presentation: BottomScreenPresentation? = null
+  private var lastFps: Int? = null
+
+  fun postFps(fps: Int?) {
+    lastFps = fps
+    presentation?.setFps(fps)
+  }
 
   private val displayListener = object : DisplayManager.DisplayListener {
     override fun onDisplayAdded(displayId: Int) {
@@ -71,7 +77,10 @@ class BottomScreenController(private val app: Context) {
     }
     val p = BottomScreenPresentation(activity, target)
     presentation = p
-    runCatching { p.show() }.onFailure { presentation = null }
+    runCatching {
+      p.show()
+      p.setFps(lastFps)
+    }.onFailure { presentation = null }
   }
 
   private fun findBottomDisplay(): Display? {

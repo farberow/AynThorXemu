@@ -78,7 +78,9 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
   private val fpsUpdateInterval = 1000L
   private val fpsRunnable = object : Runnable {
     override fun run() {
-      fpsTextView?.text = "FPS: ${nativeGetFps()}"
+      val fps = nativeGetFps()
+      fpsTextView?.text = "FPS: $fps"
+      (application as? XemuApp)?.bottomScreen?.postFps(fps)
       fpsHandler.postDelayed(this, fpsUpdateInterval)
     }
   }
@@ -340,9 +342,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
       .getBoolean("show_fps", false)
     fpsTextView?.visibility = if (showFps) View.VISIBLE else View.GONE
     fpsHandler.removeCallbacks(fpsRunnable)
-    if (showFps) {
-      fpsHandler.postDelayed(fpsRunnable, fpsUpdateInterval)
-    }
+    fpsHandler.postDelayed(fpsRunnable, fpsUpdateInterval)
 
     updateFpsOverlayPosition()
     scheduleStartupSnapshotLoadIfRequested()
@@ -350,6 +350,7 @@ class MainActivity : SDLActivity(), InputManager.InputDeviceListener {
 
   override fun onPause() {
     fpsHandler.removeCallbacks(fpsRunnable)
+    (application as? XemuApp)?.bottomScreen?.postFps(null)
     swipeUpGestureRecognizer.reset()
     onScreenController?.resetAllInputs()
     controllerBridge?.reset()
