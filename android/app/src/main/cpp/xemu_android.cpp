@@ -966,7 +966,12 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "FP JIT (native storage + inline ops): %s", fp_jit ? "ON" : "OFF");
 
-  bool fast_fences = GetPrefBool(env, activity, "fast_fences", false);
+  // Fast fences: defer the NEED_BUFFER_SPACE / VERTEX_BUFFER_DIRTY finish
+  // paths so the render thread spin-waits for submission (<100µs typical)
+  // instead of blocking on vkWaitForFences. This is a big win on texture-
+  // heavy titles like Fable and Conker where the staging buffer cycles
+  // constantly. SD 8G2 has more than enough CPU for the short spin.
+  bool fast_fences = GetPrefBool(env, activity, "fast_fences", true);
   xemu_set_fast_fences(fast_fences);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "fast fences: %s", fast_fences ? "ON" : "OFF");
@@ -986,7 +991,11 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "bindless textures: %s", bindless_tex ? "ON" : "OFF");
 
-  bool async_compile = GetPrefBool(env, activity, "async_compile", false);
+  // Async compile: when a draw hits an uncompiled pipeline, skip that draw
+  // and let the compile worker finish in the background instead of stalling
+  // the render thread. Dropped frames recover on the next redraw; a full
+  // synchronous shader compile on Adreno is 20–80ms of pure freeze.
+  bool async_compile = GetPrefBool(env, activity, "async_compile", true);
   xemu_set_async_compile(async_compile);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "async compile: %s", async_compile ? "ON" : "OFF");
