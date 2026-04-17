@@ -1,6 +1,6 @@
 <resources>
-  <string name="app_name">X1 BOX</string>
-  <string name="setup_title">Welcome to X1 BOX</string>
+  <string name="app_name">AYNXemu</string>
+  <string name="setup_title">Welcome to AYNXemu</string>
   <string name="setup_subtitle">Locate your original Xbox files.</string>
   <string name="setup_not_set">Not set</string>
   <string name="setup_selected_file_fallback_name">selected file</string>
@@ -33,7 +33,7 @@
   <string name="setup_hdd_value">Hard Disk: %1$s</string>
 
   <string name="setup_disc_title">Games Folder</string>
-  <string name="setup_disc_body">Pick your games folder using SAF. X1 BOX will scan it for playable images.</string>
+  <string name="setup_disc_body">Pick your games folder using SAF. AYNXemu will scan it for playable images.</string>
   <string name="setup_pick_disc">Choose Games Folder</string>
   <string name="setup_disc_value">Games Folder: %1$s</string>
 
@@ -82,11 +82,11 @@
   <string name="library_regular_iso_badge">! Convert to XISO</string>
   <string name="library_game_path">Path: %1$s</string>
   <string name="library_open_game">Open</string>
-  <string name="library_about_button_desc">About X1 BOX</string>
-  <string name="library_about_title">About X1 BOX</string>
-  <string name="library_about_message">X1 BOX is a community project based on xemu. Select a link below:</string>
+  <string name="library_about_button_desc">About AYNXemu</string>
+  <string name="library_about_title">About AYNXemu</string>
+  <string name="library_about_message">AYNXemu is a community project based on xemu. Select a link below:</string>
   <string name="library_about_open_failed">Unable to open link.</string>
-  <string name="library_about_link_source">Source Code (X1 BOX)</string>
+  <string name="library_about_link_source">Source Code (AYNXemu)</string>
   <string name="library_about_link_privacy">Privacy Policy</string>
   <string name="library_about_link_fork">Forked From (xemu)</string>
   <string name="library_about_link_license">License (LICENSE)</string>
@@ -173,7 +173,7 @@
   <string name="settings_filtering_nearest">Nearest</string>
   <string name="settings_vsync">VSync</string>
   <string name="frontend_launch_setup_required">Finish core setup before launching from a frontend.</string>
-  <string name="frontend_launch_unresolved">Could not access that game from the frontend intent. Pick the same folder in x1box first, or use a content URI.</string>
+  <string name="frontend_launch_unresolved">Could not access that game from the frontend intent. Pick the same folder in AYNXemu first, or use a content URI.</string>
   <string name="settings_gpu_driver_title">GPU Driver</string>
   <string name="settings_gpu_driver_desc">Use a custom Vulkan driver for better performance or compatibility on Adreno devices.</string>
   <string name="settings_gpu_driver_system">Active driver: System default</string>
