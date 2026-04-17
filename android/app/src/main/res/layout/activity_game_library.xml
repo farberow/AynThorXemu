@@ -58,8 +58,8 @@
 
             <ImageButton
               android:id="@+id/btn_library_about"
-              android:layout_width="36dp"
-              android:layout_height="36dp"
+              android:layout_width="40dp"
+              android:layout_height="40dp"
               android:layout_marginStart="6dp"
               android:background="?attr/selectableItemBackgroundBorderless"
               android:contentDescription="@string/library_about_button_desc"
