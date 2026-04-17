@@ -394,6 +394,7 @@ file(WRITE "${GLIB_CROSS_FILE}"
 )
 
 ExternalProject_Add(glib_ep
+  EXCLUDE_FROM_ALL TRUE
   URL "https://download.gnome.org/sources/glib/2.66/glib-${GLIB_VERSION}.tar.xz"
   URL_HASH "SHA256=97BC87DD91365589AF5CBBFEA2574833AEA7A1B71840FD365ECD2852C76B9C8B"
   DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/downloads"
@@ -425,6 +426,12 @@ ExternalProject_Add(glib_ep
     "${GLIB_INSTALL_DIR}/lib/libgmodule-2.0.a"
     "${GLIB_INSTALL_DIR}/lib/libgthread-2.0.a"
 )
+
+# Android Studio/AGP native sync treats the default ExternalProjectTargets/*
+# folder specially and can emit a spurious "Missing ExternalProject" sync error
+# even though the command-line build succeeds. Keep this helper target in a
+# normal folder so it looks like our other internal utility targets.
+set_property(TARGET glib_ep PROPERTY FOLDER "XemuBuildInternals")
 
 add_dependencies(glib_ep iconv_stub)
 
