@@ -29,6 +29,7 @@
   <!-- Danger / warning -->
   <color name="xemu_warning">#FF6B6B</color>
   <color name="xemu_warning_container">#4A1515</color>
+  <color name="xemu_warning_ripple">#33FF6B6B</color>
 
   <!-- Borders -->
   <color name="xemu_outline">#66FF00</color>

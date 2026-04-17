@@ -24,20 +24,12 @@
       android:gravity="center_horizontal"
       android:orientation="vertical">
 
-      <com.google.android.material.card.MaterialCardView
+            <!-- Distilled: full-page wrapper card removed. -->
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="8dp"
-        app:strokeColor="@color/xemu_green_700"
-        app:strokeWidth="1dp">
-
-        <LinearLayout
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:orientation="vertical"
-          android:padding="24dp">
+        android:orientation="vertical"
+        android:padding="20dp">
 
           <!-- Title -->
           <LinearLayout
@@ -147,6 +139,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_display"
@@ -406,6 +399,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_gpu_driver_title"
@@ -435,7 +429,7 @@
             android:layout_marginBottom="8dp"
             android:text="@string/settings_gpu_driver_not_supported"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:textColor="#FFAB91"
+            android:textColor="@color/xemu_warning"
             android:visibility="gone" />
 
           <com.google.android.material.button.MaterialButton
@@ -484,6 +478,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_performance"
@@ -582,6 +577,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_audio"
@@ -655,6 +651,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_online"
@@ -743,6 +740,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_eeprom"
@@ -867,6 +865,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_advanced_experimental"
@@ -898,7 +897,8 @@
             <TextView
               android:layout_width="wrap_content"
               android:layout_height="wrap_content"
-              android:layout_marginBottom="8dp"
+              android:layout_marginTop="28dp"
+            android:layout_marginBottom="8dp"
               android:background="@drawable/section_header_background"
               android:text="@string/settings_section_hdd_tools"
               android:textAppearance="@style/TextAppearance.Xemu.Section" />
@@ -954,6 +954,7 @@
           <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_maintenance"
@@ -1071,7 +1072,6 @@
             android:text="@string/settings_save" />
 
         </LinearLayout>
-      </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
   </androidx.core.widget.NestedScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>

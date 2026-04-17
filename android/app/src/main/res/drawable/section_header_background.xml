@@ -1,9 +1,32 @@
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-  <solid android:color="@color/xemu_green_container" />
-  <corners android:radius="8dp" />
-  <padding
-    android:left="10dp"
-    android:right="10dp"
-    android:top="4dp"
-    android:bottom="4dp" />
-</shape>
+<!--
+  Blade-tab section header. Dim container on the right, brighter left accent
+  stripe — reads as a chapter marker rather than a chip. Cut top-right corner
+  picks up the wedge language used on the hero CTA.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <item>
+    <shape>
+      <solid android:color="@color/xemu_green_container" />
+      <corners
+        android:topLeftRadius="4dp"
+        android:topRightRadius="0dp"
+        android:bottomLeftRadius="4dp"
+        android:bottomRightRadius="4dp" />
+      <padding
+        android:left="14dp"
+        android:right="14dp"
+        android:top="6dp"
+        android:bottom="6dp" />
+    </shape>
+  </item>
+
+  <item
+    android:width="3dp"
+    android:gravity="start">
+    <shape>
+      <solid android:color="@color/xemu_green_500" />
+    </shape>
+  </item>
+
+</layer-list>

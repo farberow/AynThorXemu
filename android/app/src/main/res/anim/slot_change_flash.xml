@@ -1,0 +1,24 @@
+<!--
+  One-shot green flash when the slot counter changes. Gives the +/- buttons a
+  physical confirm without a toast. 320ms, scales down the intensity quickly.
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+  android:shareInterpolator="false">
+
+  <alpha
+    android:fromAlpha="0.3"
+    android:toAlpha="1.0"
+    android:duration="320"
+    android:interpolator="@android:interpolator/fast_out_slow_in" />
+
+  <scale
+    android:fromXScale="1.08"
+    android:toXScale="1.0"
+    android:fromYScale="1.08"
+    android:toYScale="1.0"
+    android:pivotX="50%"
+    android:pivotY="50%"
+    android:duration="320"
+    android:interpolator="@android:interpolator/overshoot" />
+
+</set>

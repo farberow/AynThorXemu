@@ -1,0 +1,18 @@
+<!--
+  Game list row entrance: slide up 16dp + fade in. 220ms is brisk enough that
+  skimming a long list doesn't feel slow, short enough to feel premium.
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+  android:duration="220"
+  android:interpolator="@android:interpolator/fast_out_slow_in"
+  android:shareInterpolator="true">
+
+  <translate
+    android:fromYDelta="16%"
+    android:toYDelta="0" />
+
+  <alpha
+    android:fromAlpha="0"
+    android:toAlpha="1" />
+
+</set>

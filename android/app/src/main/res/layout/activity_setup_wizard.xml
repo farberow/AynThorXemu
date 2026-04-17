@@ -25,21 +25,16 @@
       android:gravity="center_horizontal"
       android:orientation="vertical">
 
-      <com.google.android.material.card.MaterialCardView
+      <!--
+        Distilled: full-page wrapper card removed. setup_card id moved onto
+        the content container so the Kotlin minimumHeight logic still works.
+      -->
+      <LinearLayout
         android:id="@+id/setup_card"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="8dp"
-        app:strokeColor="@color/xemu_green_700"
-        app:strokeWidth="1dp">
-
-        <LinearLayout
-          android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:orientation="vertical"
-          android:padding="24dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="20dp">
 
           <TextView
             android:id="@+id/setup_title"
@@ -77,7 +72,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_mcpx_title"
                 android:src="@drawable/ic_xemu_upload_file"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_mcpx_title"
@@ -85,7 +80,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/setup_mcpx_title"
-                android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+                android:textAppearance="@style/TextAppearance.Xemu.Title" />
 
               <TextView
                 android:id="@+id/setup_mcpx_body"
@@ -132,7 +127,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_flash_title"
                 android:src="@drawable/ic_xemu_memory"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_flash_title"
@@ -140,7 +135,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/setup_flash_title"
-                android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+                android:textAppearance="@style/TextAppearance.Xemu.Title" />
 
               <TextView
                 android:id="@+id/setup_flash_body"
@@ -187,7 +182,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_hdd_title"
                 android:src="@drawable/ic_xemu_hard_drive"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_hdd_title"
@@ -195,7 +190,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/setup_hdd_title"
-                android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+                android:textAppearance="@style/TextAppearance.Xemu.Title" />
 
               <TextView
                 android:id="@+id/setup_hdd_body"
@@ -242,7 +237,7 @@
                 android:layout_gravity="center_horizontal"
                 android:contentDescription="@string/setup_disc_title"
                 android:src="@drawable/ic_xemu_disc"
-                android:tint="@color/xemu_green" />
+                app:tint="@color/xemu_green" />
 
               <TextView
                 android:id="@+id/setup_disc_title"
@@ -250,7 +245,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:text="@string/setup_disc_title"
-                android:textAppearance="@style/TextAppearance.Material3.TitleLarge" />
+                android:textAppearance="@style/TextAppearance.Xemu.Title" />
 
               <TextView
                 android:id="@+id/setup_disc_body"
@@ -350,8 +345,7 @@
               android:layout_weight="1"
               android:text="@string/setup_next" />
           </LinearLayout>
-        </LinearLayout>
-      </com.google.android.material.card.MaterialCardView>
+      </LinearLayout>
     </LinearLayout>
   </androidx.core.widget.NestedScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>

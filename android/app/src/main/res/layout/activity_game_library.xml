@@ -24,20 +24,16 @@
       android:gravity="center_horizontal"
       android:orientation="vertical">
 
-      <com.google.android.material.card.MaterialCardView
+      <!--
+        Distilled: the full-page wrapper card was removed. The screen itself
+        is the surface; the background gradient + padding do the work. Green
+        reserved for accents, not for framing everything.
+      -->
+      <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="20dp"
-        app:cardElevation="8dp"
-        app:strokeColor="@color/xemu_green_700"
-        app:strokeWidth="1dp">
-
-        <LinearLayout
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:orientation="vertical"
-          android:padding="24dp">
+        android:orientation="vertical"
+        android:padding="20dp">
 
           <LinearLayout
             android:layout_width="match_parent"
@@ -45,11 +41,14 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <View
-              android:layout_width="4dp"
-              android:layout_height="28dp"
+            <ImageView
+              android:id="@+id/library_brand_x"
+              android:layout_width="26dp"
+              android:layout_height="26dp"
               android:layout_marginEnd="10dp"
-              android:background="@color/xemu_green_500" />
+              android:contentDescription="@null"
+              android:src="@drawable/ic_xemu_x_mark"
+              app:tint="@color/xemu_green_500" />
 
             <TextView
               android:layout_width="wrap_content"
@@ -59,14 +58,14 @@
 
             <ImageButton
               android:id="@+id/btn_library_about"
-              android:layout_width="36dp"
-              android:layout_height="36dp"
+              android:layout_width="40dp"
+              android:layout_height="40dp"
               android:layout_marginStart="6dp"
               android:background="?attr/selectableItemBackgroundBorderless"
               android:contentDescription="@string/library_about_button_desc"
               android:padding="6dp"
               android:src="@drawable/ic_xemu_info"
-              android:tint="@color/game_library_top_button_content" />
+              app:tint="@color/game_library_top_button_content" />
 
             <View
               android:layout_width="0dp"
@@ -81,7 +80,7 @@
               android:contentDescription="@string/library_settings"
               android:padding="6dp"
               android:src="@drawable/ic_xemu_settings"
-              android:tint="@color/game_library_top_button_content" />
+              app:tint="@color/game_library_top_button_content" />
           </LinearLayout>
 
           <!--
@@ -139,7 +138,7 @@
               android:layout_marginEnd="6dp"
               android:contentDescription="@null"
               android:src="@drawable/ic_xemu_info"
-              android:tint="@color/xemu_notice" />
+              app:tint="@color/xemu_notice" />
 
             <TextView
               android:id="@+id/tv_library_long_press_hint"
@@ -246,17 +245,18 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="8dp"
             android:text="@string/library_convert_iso"
-            android:textColor="#FF5252"
+            android:textColor="@color/xemu_warning"
             android:visibility="gone"
-            app:rippleColor="#33FF5252"
+            app:rippleColor="@color/xemu_warning_ripple"
             app:shapeAppearance="@style/ShapeAppearance.Xemu.Pill"
-            app:strokeColor="#FF5252" />
+            app:strokeColor="@color/xemu_warning" />
 
           <LinearLayout
             android:id="@+id/library_games_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:layoutAnimation="@anim/library_layout_animation"
             android:orientation="vertical" />
 
           <LinearLayout
@@ -264,10 +264,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:layoutAnimation="@anim/library_layout_animation"
             android:orientation="vertical"
             android:visibility="gone" />
-        </LinearLayout>
-      </com.google.android.material.card.MaterialCardView>
+      </LinearLayout>
     </LinearLayout>
   </androidx.core.widget.NestedScrollView>
 </androidx.constraintlayout.widget.ConstraintLayout>

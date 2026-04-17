@@ -177,6 +177,9 @@ class GameLibraryActivity : AppCompatActivity() {
     btnAbout = findViewById(R.id.btn_library_about)
     btnViewList = findViewById(R.id.btn_view_list)
     btnViewGrid = findViewById(R.id.btn_view_grid)
+
+    findViewById<android.widget.ImageView>(R.id.library_brand_x)
+      ?.startAnimation(android.view.animation.AnimationUtils.loadAnimation(this, R.anim.x_mark_idle_pulse))
     btnViewList.isCheckable = true
     btnViewGrid.isCheckable = true
 
