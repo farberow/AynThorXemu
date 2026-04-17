@@ -8,29 +8,43 @@
   android:keepScreenOn="true"
   android:padding="20dp">
 
+  <!--
+    Header strip: brand mark + status pill. No wrapper card — the dashboard
+    IS the surface, not a card on a surface. The brand is sparse on purpose;
+    the bold green lives in the HUD numbers below, not the chrome.
+  -->
+  <View
+    android:id="@+id/dashboard_brand_wedge"
+    android:layout_width="6dp"
+    android:layout_height="28dp"
+    android:background="@color/xemu_green_500"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent" />
+
   <TextView
     android:id="@+id/dashboard_brand"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:layout_marginStart="10dp"
     android:text="@string/app_name"
-    android:textColor="@color/xemu_green"
+    android:textAppearance="@style/TextAppearance.Xemu.Title"
+    android:textColor="@color/xemu_green_500"
     android:textSize="20sp"
-    android:textStyle="bold"
-    android:letterSpacing="0.12"
-    android:fontFamily="monospace"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toTopOf="parent" />
+    app:layout_constraintStart_toEndOf="@id/dashboard_brand_wedge"
+    app:layout_constraintTop_toTopOf="@id/dashboard_brand_wedge"
+    app:layout_constraintBottom_toBottomOf="@id/dashboard_brand_wedge" />
 
   <TextView
     android:id="@+id/dashboard_subtitle"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:layout_marginStart="10dp"
+    android:layout_marginTop="4dp"
     android:text="dashboard"
+    android:textAppearance="@style/TextAppearance.Xemu.Label"
     android:textColor="@color/xemu_text_muted"
-    android:textSize="11sp"
-    android:letterSpacing="0.25"
-    android:fontFamily="monospace"
-    app:layout_constraintStart_toStartOf="@id/dashboard_brand"
+    android:textSize="10sp"
+    app:layout_constraintStart_toEndOf="@id/dashboard_brand_wedge"
     app:layout_constraintTop_toBottomOf="@id/dashboard_brand" />
 
   <TextView
@@ -38,13 +52,23 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:text="idle"
+    android:textAppearance="@style/TextAppearance.Xemu.Label"
     android:textColor="@color/xemu_text_muted"
     android:textSize="11sp"
-    android:letterSpacing="0.25"
-    android:fontFamily="monospace"
     app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintTop_toTopOf="@id/dashboard_brand"
+    app:layout_constraintTop_toTopOf="@id/dashboard_brand_wedge"
     app:layout_constraintBottom_toBottomOf="@id/dashboard_subtitle" />
+
+  <!-- Tick-mark divider under the header — subtle HUD cue. -->
+  <View
+    android:id="@+id/dashboard_divider_top"
+    android:layout_width="0dp"
+    android:layout_height="1dp"
+    android:layout_marginTop="16dp"
+    android:background="@color/xemu_green_900"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/dashboard_subtitle" />
 
   <!-- Stats row: FPS / CPU / GPU -->
   <LinearLayout
@@ -53,10 +77,10 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:weightSum="3"
-    android:layout_marginTop="24dp"
+    android:layout_marginTop="20dp"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintTop_toBottomOf="@id/dashboard_subtitle">
+    app:layout_constraintTop_toBottomOf="@id/dashboard_divider_top">
 
     <LinearLayout
       android:layout_width="0dp"
@@ -68,19 +92,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="FPS"
-        android:textColor="@color/xemu_text_muted"
-        android:textSize="12sp"
-        android:letterSpacing="0.2"
-        android:fontFamily="monospace" />
+        android:textAppearance="@style/TextAppearance.Xemu.Label"
+        android:textSize="11sp" />
 
       <TextView
         android:id="@+id/dashboard_fps_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="—"
-        android:textColor="@color/xemu_green"
-        android:textSize="56sp"
-        android:fontFamily="monospace" />
+        android:textAppearance="@style/TextAppearance.Xemu.Hud.Number" />
 
     </LinearLayout>
 
@@ -94,19 +114,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="CPU"
-        android:textColor="@color/xemu_text_muted"
-        android:textSize="12sp"
-        android:letterSpacing="0.2"
-        android:fontFamily="monospace" />
+        android:textAppearance="@style/TextAppearance.Xemu.Label"
+        android:textSize="11sp" />
 
       <TextView
         android:id="@+id/dashboard_cpu_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="—"
-        android:textColor="@color/xemu_text"
-        android:textSize="32sp"
-        android:fontFamily="monospace" />
+        android:textAppearance="@style/TextAppearance.Xemu.Hud.NumberSmall" />
 
     </LinearLayout>
 
@@ -120,19 +136,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="GPU"
-        android:textColor="@color/xemu_text_muted"
-        android:textSize="12sp"
-        android:letterSpacing="0.2"
-        android:fontFamily="monospace" />
+        android:textAppearance="@style/TextAppearance.Xemu.Label"
+        android:textSize="11sp" />
 
       <TextView
         android:id="@+id/dashboard_gpu_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="—"
-        android:textColor="@color/xemu_text"
-        android:textSize="32sp"
-        android:fontFamily="monospace" />
+        android:textAppearance="@style/TextAppearance.Xemu.Hud.NumberSmall" />
 
     </LinearLayout>
 
@@ -143,11 +155,8 @@
     android:id="@+id/dashboard_controls_label"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="SAVE STATE"
-    android:textColor="@color/xemu_text_muted"
-    android:textSize="12sp"
-    android:letterSpacing="0.25"
-    android:fontFamily="monospace"
+    android:text="Save State"
+    android:textAppearance="@style/TextAppearance.Xemu.Section"
     android:layout_marginTop="28dp"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toBottomOf="@id/dashboard_stats" />
@@ -173,7 +182,7 @@
       android:minWidth="0dp"
       android:text="−"
       android:textSize="22sp"
-      app:strokeColor="@color/xemu_outline"
+      app:strokeColor="@color/xemu_green_700"
       android:textColor="@color/xemu_text" />
 
     <TextView
@@ -198,46 +207,43 @@
       android:minWidth="0dp"
       android:text="+"
       android:textSize="22sp"
-      app:strokeColor="@color/xemu_outline"
+      app:strokeColor="@color/xemu_green_700"
       android:textColor="@color/xemu_text" />
 
   </LinearLayout>
 
-  <!-- Save / Load row -->
+  <!-- Save / Load — SAVE is the hero wedge CTA. -->
   <LinearLayout
     android:id="@+id/dashboard_save_load_row"
     android:layout_width="0dp"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:layout_marginTop="8dp"
+    android:layout_marginTop="10dp"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintEnd_toEndOf="parent"
     app:layout_constraintTop_toBottomOf="@id/dashboard_slot_row">
 
     <com.google.android.material.button.MaterialButton
       android:id="@+id/dashboard_save"
+      style="@style/Widget.Xemu.Button.Wedge"
       android:layout_width="0dp"
       android:layout_height="56dp"
       android:layout_weight="1"
       android:layout_marginEnd="6dp"
       android:insetTop="0dp"
       android:insetBottom="0dp"
-      android:text="SAVE"
-      android:textColor="@color/xemu_black"
-      app:backgroundTint="@color/xemu_green" />
+      android:text="Save" />
 
     <com.google.android.material.button.MaterialButton
       android:id="@+id/dashboard_load"
-      style="?attr/materialButtonOutlinedStyle"
+      style="@style/Widget.Xemu.Button.Wedge.Outlined"
       android:layout_width="0dp"
       android:layout_height="56dp"
       android:layout_weight="1"
       android:layout_marginStart="6dp"
       android:insetTop="0dp"
       android:insetBottom="0dp"
-      android:text="LOAD"
-      android:textColor="@color/xemu_text"
-      app:strokeColor="@color/xemu_outline" />
+      android:text="Load" />
 
   </LinearLayout>
 
@@ -246,12 +252,9 @@
     android:id="@+id/dashboard_toggles_label"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="QUICK"
-    android:textColor="@color/xemu_text_muted"
-    android:textSize="12sp"
-    android:letterSpacing="0.25"
-    android:fontFamily="monospace"
-    android:layout_marginTop="20dp"
+    android:text="Quick"
+    android:textAppearance="@style/TextAppearance.Xemu.Section"
+    android:layout_marginTop="24dp"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toBottomOf="@id/dashboard_save_load_row" />
 
@@ -274,9 +277,9 @@
       android:layout_marginEnd="6dp"
       android:insetTop="0dp"
       android:insetBottom="0dp"
-      android:text="PAUSE"
+      android:text="Pause"
       android:textColor="@color/xemu_text"
-      app:strokeColor="@color/xemu_outline" />
+      app:strokeColor="@color/xemu_green_700" />
 
     <com.google.android.material.button.MaterialButton
       android:id="@+id/dashboard_reboot"
@@ -287,7 +290,7 @@
       android:layout_marginStart="6dp"
       android:insetTop="0dp"
       android:insetBottom="0dp"
-      android:text="REBOOT"
+      android:text="Reboot"
       android:textColor="@color/xemu_warning"
       app:strokeColor="@color/xemu_warning" />
 
@@ -299,7 +302,6 @@
     android:layout_height="wrap_content"
     android:text="FPS overlay on main"
     android:textColor="@color/xemu_text"
-    android:fontFamily="monospace"
     android:layout_marginTop="16dp"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintTop_toBottomOf="@id/dashboard_toggles_row" />

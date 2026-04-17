@@ -30,10 +30,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="14dp"
-        app:strokeColor="@color/xemu_outline"
-        app:strokeWidth="2dp">
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp"
+        app:strokeColor="@color/xemu_green_700"
+        app:strokeWidth="1dp">
 
         <LinearLayout
           android:layout_width="match_parent"
@@ -47,7 +47,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:text="@string/setup_title"
-            android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" />
+            android:textAppearance="@style/TextAppearance.Xemu.Display" />
 
           <TextView
             android:id="@+id/setup_subtitle"
@@ -343,6 +343,7 @@
 
             <com.google.android.material.button.MaterialButton
               android:id="@+id/btn_wizard_next"
+              style="@style/Widget.Xemu.Button.Wedge"
               android:layout_width="0dp"
               android:layout_height="wrap_content"
               android:layout_marginStart="12dp"

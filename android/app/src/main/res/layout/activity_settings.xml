@@ -28,10 +28,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardBackgroundColor="@color/xemu_surface"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="14dp"
-        app:strokeColor="@color/xemu_outline"
-        app:strokeWidth="2dp">
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp"
+        app:strokeColor="@color/xemu_green_700"
+        app:strokeWidth="1dp">
 
         <LinearLayout
           android:layout_width="match_parent"
@@ -40,12 +40,25 @@
           android:padding="24dp">
 
           <!-- Title -->
-          <TextView
+          <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="20dp"
-            android:text="@string/settings_title"
-            android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+              android:layout_width="4dp"
+              android:layout_height="26dp"
+              android:layout_marginEnd="10dp"
+              android:background="@color/xemu_green_500" />
+
+            <TextView
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:text="@string/settings_title"
+              android:textAppearance="@style/TextAppearance.Xemu.Display" />
+          </LinearLayout>
 
           <!-- ── CONTROLS ── -->
           <TextView
@@ -54,8 +67,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_controls"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <TextView
             android:layout_width="match_parent"
@@ -138,8 +150,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_display"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <TextView
             android:layout_width="match_parent"
@@ -398,8 +409,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_gpu_driver_title"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <TextView
             android:layout_width="match_parent"
@@ -477,8 +487,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_performance"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <TextView
             android:layout_width="match_parent"
@@ -576,8 +585,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_audio"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switch_use_dsp"
@@ -650,8 +658,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_online"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switch_network_enable"
@@ -739,8 +746,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_eeprom"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <TextView
             android:id="@+id/tv_eeprom_status"
@@ -864,8 +870,7 @@
             android:layout_marginBottom="8dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_advanced_experimental"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <TextView
             android:layout_width="match_parent"
@@ -896,8 +901,7 @@
               android:layout_marginBottom="8dp"
               android:background="@drawable/section_header_background"
               android:text="@string/settings_section_hdd_tools"
-              android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-              android:textColor="@color/xemu_green_light" />
+              android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
             <TextView
               android:id="@+id/tv_hdd_tools_status"
@@ -953,8 +957,7 @@
             android:layout_marginBottom="8dp"
             android:background="@drawable/section_header_background"
             android:text="@string/settings_section_maintenance"
-            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
-            android:textColor="@color/xemu_green_light" />
+            android:textAppearance="@style/TextAppearance.Xemu.Section" />
 
           <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/switch_show_fps"
