@@ -966,12 +966,10 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "FP JIT (native storage + inline ops): %s", fp_jit ? "ON" : "OFF");
 
-  // Fast fences: defer the NEED_BUFFER_SPACE / VERTEX_BUFFER_DIRTY finish
-  // paths so the render thread spin-waits for submission (<100µs typical)
-  // instead of blocking on vkWaitForFences. This is a big win on texture-
-  // heavy titles like Fable and Conker where the staging buffer cycles
-  // constantly. SD 8G2 has more than enough CPU for the short spin.
-  bool fast_fences = GetPrefBool(env, activity, "fast_fences", true);
+  // Fast fences defers fence waits into a spin. Tested on Thor: caused
+  // stutter-then-crash in Fable, so keep it opt-in until the underlying
+  // readback path is audited.
+  bool fast_fences = GetPrefBool(env, activity, "fast_fences", false);
   xemu_set_fast_fences(fast_fences);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "fast fences: %s", fast_fences ? "ON" : "OFF");
@@ -991,11 +989,10 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "bindless textures: %s", bindless_tex ? "ON" : "OFF");
 
-  // Async compile: when a draw hits an uncompiled pipeline, skip that draw
-  // and let the compile worker finish in the background instead of stalling
-  // the render thread. Dropped frames recover on the next redraw; a full
-  // synchronous shader compile on Adreno is 20–80ms of pure freeze.
-  bool async_compile = GetPrefBool(env, activity, "async_compile", true);
+  // Async compile skips draws on uncompiled pipelines. Stays opt-in with
+  // fast_fences — skipped draws plus deferred fences appear to interact
+  // badly in Fable during early-scene shader warmup.
+  bool async_compile = GetPrefBool(env, activity, "async_compile", false);
   xemu_set_async_compile(async_compile);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "async compile: %s", async_compile ? "ON" : "OFF");
@@ -1005,11 +1002,9 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "frame skip: %s", frame_skip ? "ON" : "OFF");
 
-  // Pair with fast_fences: three frame slots means frame rotation almost
-  // never blocks on the next slot's fence. Costs ~800 MB of extra staging
-  // pools — well within Thor's memory budget, not cheap on low-RAM devices,
-  // but the default is only consulted when the user hasn't set a value.
-  int submit_frames = GetPrefInt(env, activity, "submit_frames", 3);
+  // Two frames in flight is the safe default — Fable crashed with three,
+  // likely staging pool pressure on top of the fast_fences defer path.
+  int submit_frames = GetPrefInt(env, activity, "submit_frames", 2);
   xemu_set_submit_frames(submit_frames);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "submit frames: %d", submit_frames);
