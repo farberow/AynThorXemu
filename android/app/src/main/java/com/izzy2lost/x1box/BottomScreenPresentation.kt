@@ -53,10 +53,20 @@ class BottomScreenPresentation(
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    window?.setFlags(
-      WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
-      WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-    )
+    // The dashboard is always-on furniture, not a dialog — never let Back,
+    // gamepad B, or stray touches dismiss it.
+    setCancelable(false)
+    setCanceledOnTouchOutside(false)
+    window?.apply {
+      setFlags(
+        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+      )
+      // Dialogs dim their host window by default. On a dual-display setup,
+      // attach glitches can briefly paint that dim on the top screen.
+      clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+      setDimAmount(0f)
+    }
     setContentView(R.layout.bottom_dashboard)
 
     brandX = findViewById(R.id.dashboard_brand_wedge)
@@ -176,11 +186,18 @@ class BottomScreenPresentation(
     prefs.edit().putInt(PREF_SLOT, slot).apply()
   }
 
-  /** "build 42 • 1.2.4" — zero means the counter hasn't run yet. */
+  /** "BUILD v1.2.4 • thor-2026-04-18.01" */
   private fun formatBuildBadge(): String {
-    val n = BuildConfig.AUTO_BUILD_NUMBER
-    val v = BuildConfig.VERSION_NAME
-    return if (n <= 0) "build — • $v" else "build $n • $v"
+    val version = BuildConfig.VERSION_NAME.trim()
+    val manualLabel = BuildConfig.BOTTOM_SCREEN_BUILD_LABEL.trim()
+    if (version.isEmpty()) {
+      return manualLabel.ifEmpty { "BUILD unknown" }
+    }
+    return if (manualLabel.isEmpty()) {
+      "BUILD v$version"
+    } else {
+      "BUILD v$version • $manualLabel"
+    }
   }
 
   companion object {

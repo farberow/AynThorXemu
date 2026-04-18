@@ -3,6 +3,7 @@ package com.izzy2lost.x1box
 import android.app.Activity
 import android.content.Context
 import android.hardware.display.DisplayManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -72,6 +73,12 @@ class BottomScreenController(private val app: Context) {
     if (p.ownerContext === activity) {
       p.dismiss()
       presentation = null
+      // Don't leave the bottom screen dark — if another activity is currently
+      // resumed, re-host the dashboard on it.
+      val next = resumedActivity
+      if (next != null && next !== activity) {
+        showOn(next)
+      }
     }
   }
 
@@ -81,14 +88,22 @@ class BottomScreenController(private val app: Context) {
       Log.i(TAG, "no bottom display found")
       return
     }
-    Log.i(TAG, "showOn activity=${activity::class.java.simpleName} display=${target.displayId}")
     val existing = presentation
     if (existing != null) {
       val sameDisplay = existing.display.displayId == target.displayId
-      val sameOwner = existing.ownerContext === activity
-      if (sameDisplay && sameOwner && existing.isShowing) return
+      val healthy = existing.isShowing && !isOwnerDead(existing)
+      if (sameDisplay && healthy) {
+        // Reuse across activity transitions — re-creating the Presentation on
+        // every resume causes a visible flash on the bottom screen and briefly
+        // steals focus on the top screen.
+        existing.setFps(lastFps)
+        existing.setEmulatorBridge(emulatorBridge)
+        return
+      }
+      Log.i(TAG, "replacing presentation sameDisplay=$sameDisplay healthy=$healthy")
       existing.dismiss()
     }
+    Log.i(TAG, "showOn activity=${activity::class.java.simpleName} display=${target.displayId}")
     val p = BottomScreenPresentation(activity, target)
     presentation = p
     try {
@@ -100,6 +115,12 @@ class BottomScreenController(private val app: Context) {
       Log.e(TAG, "presentation show failed", t)
       presentation = null
     }
+  }
+
+  private fun isOwnerDead(p: BottomScreenPresentation): Boolean {
+    val owner = p.ownerContext as? Activity ?: return false
+    if (owner.isFinishing) return true
+    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && owner.isDestroyed
   }
 
   companion object {
