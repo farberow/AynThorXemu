@@ -228,7 +228,7 @@ void pgraph_gl_draw_begin(NV2AState *d)
                     & NV_PGRAPH_SETUPRASTER_FRONTFACE
                         ? GL_CW : GL_CCW);
 
-    if (g_config.perf.legacy_opengl_depth) {
+    if (g_config.perf.legacy_depth_path) {
         bool polygon_offset_enabled = false;
 
         if (pgraph_reg_r(pg, NV_PGRAPH_SETUPRASTER) &

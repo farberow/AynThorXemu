@@ -702,7 +702,7 @@ struct DisplaySettings {
   bool cache_shaders = true;
   bool net_enable = false;
   bool skip_occlusion_queries = false;
-  bool legacy_opengl_depth = true;
+  bool legacy_depth_path = true;
   std::string renderer = "vulkan";
   std::string filtering = "nearest";
   std::string aspect_ratio = "fit";
@@ -798,8 +798,8 @@ static bool WriteConfigToml(const std::string& config_path,
     perf->insert_or_assign("cache_shaders", ds.cache_shaders);
     perf->insert_or_assign("skip_occlusion_queries",
                            ds.skip_occlusion_queries);
-    perf->insert_or_assign("legacy_opengl_depth",
-                           ds.legacy_opengl_depth);
+    perf->insert_or_assign("legacy_depth_path",
+                           ds.legacy_depth_path);
     perf->insert_or_assign("texture_cache_size",
                            ds.texture_cache_size);
   }
@@ -1022,12 +1022,12 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "skip occlusion queries: %s", skip_oq ? "ON" : "OFF");
 
-  bool legacy_opengl_depth =
-      GetPrefBool(env, activity, "legacy_opengl_depth", true);
-  ds.legacy_opengl_depth = legacy_opengl_depth;
+  bool legacy_depth_path =
+      GetPrefBool(env, activity, "legacy_depth_path", true);
+  ds.legacy_depth_path = legacy_depth_path;
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
-                      "legacy OpenGL depth path: %s",
-                      legacy_opengl_depth ? "ON" : "OFF");
+                      "legacy depth path: %s",
+                      legacy_depth_path ? "ON" : "OFF");
 
   int tex_cache = GetPrefInt(env, activity, "texture_cache_size", 0);
   if (tex_cache < 0) {

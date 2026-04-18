@@ -290,7 +290,7 @@ struct config {
         bool cache_shaders;
         bool unlock_framerate;
         bool skip_occlusion_queries;
-        bool legacy_opengl_depth;
+        bool legacy_depth_path;
         int texture_cache_size;
     } perf;
 };

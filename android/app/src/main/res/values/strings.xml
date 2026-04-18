@@ -247,8 +247,8 @@
   <string name="settings_tier1_threshold_64">Default (64)</string>
   <string name="settings_tier1_threshold_128">Conservative (128)</string>
   <string name="settings_tier1_threshold_256">Lazy (256)</string>
-  <string name="settings_legacy_opengl_depth">Legacy OpenGL Depth Path</string>
-  <string name="settings_legacy_opengl_depth_hint">Use the older hakuX-style OpenGL depth and polygon-offset path for filled triangles. This can fix Fable-style z-fighting or cutscene corruption on some drivers, but it may reintroduce older depth inaccuracies. OpenGL renderer only.</string>
+  <string name="settings_legacy_depth_path">Legacy Depth Path</string>
+  <string name="settings_legacy_depth_path_hint">Use the older fixed-function depth and polygon-offset path for filled triangles. Fixes Fable-style z-fighting and cutscene corruption but may reintroduce older depth inaccuracies.</string>
   <string name="settings_simple_vblank">Simple VBlank Timing</string>
   <string name="settings_simple_vblank_hint">Use the simpler hakuX-style VBlank interrupt path instead of the adaptive timing model. This can help with timing-sensitive hangs, but frame pacing and game speed may be less accurate.</string>
 

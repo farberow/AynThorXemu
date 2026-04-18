@@ -103,7 +103,7 @@ static void xemu_settings_apply_defaults(void)
     g_config.perf.cache_shaders = true;
     g_config.perf.unlock_framerate = true;
     g_config.perf.skip_occlusion_queries = false;
-    g_config.perf.legacy_opengl_depth = true;
+    g_config.perf.legacy_depth_path = true;
     g_config.perf.texture_cache_size = 0;
 }
 
@@ -309,8 +309,8 @@ bool xemu_settings_load(void)
         if (auto skip_oq = perf["skip_occlusion_queries"].value<bool>()) {
             g_config.perf.skip_occlusion_queries = *skip_oq;
         }
-        if (auto legacy_depth = perf["legacy_opengl_depth"].value<bool>()) {
-            g_config.perf.legacy_opengl_depth = *legacy_depth;
+        if (auto legacy_depth = perf["legacy_depth_path"].value<bool>()) {
+            g_config.perf.legacy_depth_path = *legacy_depth;
         }
         if (auto texture_cache_size = perf["texture_cache_size"].value<int64_t>()) {
             int entries = (int)*texture_cache_size;

@@ -1356,7 +1356,12 @@ static void create_pipeline(PGRAPHState *pg)
                  VK_FRONT_FACE_COUNTER_CLOCKWISE :
                  VK_FRONT_FACE_CLOCKWISE,
 #endif
-        .depthBiasEnable = VK_FALSE,
+        /* Legacy depth path reinstates fixed-function polygon offset that
+         * upstream xemu commit d6cb7536a2 replaced with shader-side barycentric
+         * math. Needed to fix Fable-style z-fighting (upstream issue #2539)
+         * on both GL and Vulkan backends. Values are provided dynamically via
+         * vkCmdSetDepthBias so we don't need ZOFFSET* regs in the pipeline key. */
+        .depthBiasEnable = g_config.perf.legacy_depth_path ? VK_TRUE : VK_FALSE,
         .pNext = rasterizer_next_struct,
     };
 
@@ -1527,6 +1532,11 @@ static void create_pipeline(PGRAPHState *pg)
         dynamic_states[num_dynamic_states++] = VK_DYNAMIC_STATE_LINE_WIDTH;
     }
 
+    snode->has_dynamic_depth_bias = g_config.perf.legacy_depth_path;
+    if (snode->has_dynamic_depth_bias) {
+        dynamic_states[num_dynamic_states++] = VK_DYNAMIC_STATE_DEPTH_BIAS;
+    }
+
     VkPipelineDynamicStateCreateInfo dynamic_state = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
         .dynamicStateCount = num_dynamic_states,
@@ -1658,6 +1668,7 @@ static void create_pipeline(PGRAPHState *pg)
                num_dynamic_states * sizeof(VkDynamicState));
         p->num_dynamic_states = num_dynamic_states;
         p->has_dynamic_line_width = snode->has_dynamic_line_width;
+        p->has_dynamic_depth_bias = snode->has_dynamic_depth_bias;
         p->layout = layout;
         p->render_pass = render_pass;
 
@@ -3139,6 +3150,30 @@ mfp_miss: (void)0;
     }
 }
 
+static void capture_depth_bias(PGRAPHState *pg, float *constant, float *slope)
+{
+    uint32_t setupraster = pgraph_vk_reg_r(pg, NV_PGRAPH_SETUPRASTER);
+    uint32_t front_mode =
+        GET_MASK(setupraster, NV_PGRAPH_SETUPRASTER_FRONTFACEMODE);
+    bool enable = false;
+    if (front_mode == NV_PGRAPH_SETUPRASTER_FRONTFACEMODE_FILL) {
+        enable = setupraster & NV_PGRAPH_SETUPRASTER_POFFSETFILLENABLE;
+    } else if (front_mode == NV_PGRAPH_SETUPRASTER_FRONTFACEMODE_LINE) {
+        enable = setupraster & NV_PGRAPH_SETUPRASTER_POFFSETLINEENABLE;
+    } else if (front_mode == NV_PGRAPH_SETUPRASTER_FRONTFACEMODE_POINT) {
+        enable = setupraster & NV_PGRAPH_SETUPRASTER_POFFSETPOINTENABLE;
+    }
+    if (enable) {
+        uint32_t zfactor_u32 = pgraph_vk_reg_r(pg, NV_PGRAPH_ZOFFSETFACTOR);
+        uint32_t zbias_u32 = pgraph_vk_reg_r(pg, NV_PGRAPH_ZOFFSETBIAS);
+        *slope = *(float *)&zfactor_u32;
+        *constant = *(float *)&zbias_u32;
+    } else {
+        *slope = 0.0f;
+        *constant = 0.0f;
+    }
+}
+
 static float clamp_line_width_to_device_limits(PGRAPHState *pg, float width)
 {
     PGRAPHVkState *r = pg->vk_renderer_state;
@@ -3243,6 +3278,12 @@ static void begin_draw(PGRAPHState *pg)
             float line_width =
                 clamp_line_width_to_device_limits(pg, pg->surface_scale_factor);
             vkCmdSetLineWidth(r->command_buffer, line_width);
+        }
+
+        if (r->pipeline_binding->has_dynamic_depth_bias) {
+            float constant, slope;
+            capture_depth_bias(pg, &constant, &slope);
+            vkCmdSetDepthBias(r->command_buffer, constant, 0.0f, slope);
         }
     }
 
@@ -4425,6 +4466,10 @@ static bool try_snapshot_draw_arrays(NV2AState *d, ReorderWindowEntry *e)
         e->line_width =
             clamp_line_width_to_device_limits(pg, pg->surface_scale_factor);
     }
+    e->has_dynamic_depth_bias = r->pipeline_binding->has_dynamic_depth_bias;
+    if (e->has_dynamic_depth_bias) {
+        capture_depth_bias(pg, &e->depth_bias_constant, &e->depth_bias_slope);
+    }
 
 #if OPT_BINDLESS_TEXTURES
     if (r->bindless_textures_supported) {
@@ -4568,6 +4613,10 @@ static bool try_snapshot_inline_elements(NV2AState *d, ReorderWindowEntry *e)
         e->line_width =
             clamp_line_width_to_device_limits(pg, pg->surface_scale_factor);
     }
+    e->has_dynamic_depth_bias = r->pipeline_binding->has_dynamic_depth_bias;
+    if (e->has_dynamic_depth_bias) {
+        capture_depth_bias(pg, &e->depth_bias_constant, &e->depth_bias_slope);
+    }
 
 #if OPT_BINDLESS_TEXTURES
     if (r->bindless_textures_supported) {
@@ -4643,6 +4692,10 @@ static void emit_reorder_entry(PGRAPHState *pg, ReorderWindowEntry *e,
         vkCmdSetScissor(r->command_buffer, 0, 1, &e->scissor);
         if (e->has_dynamic_line_width) {
             vkCmdSetLineWidth(r->command_buffer, e->line_width);
+        }
+        if (e->has_dynamic_depth_bias) {
+            vkCmdSetDepthBias(r->command_buffer, e->depth_bias_constant, 0.0f,
+                              e->depth_bias_slope);
         }
     }
 

@@ -33,6 +33,10 @@ object PerGameSettingsManager {
     "draw_merge",
     "async_compile",
     "submit_frames",
+    "legacy_depth_path",
+    "simple_vblank",
+    "skip_occlusion_queries",
+    "frame_skip",
   )
 
   fun hasOverrides(context: Context, relativePath: String): Boolean {

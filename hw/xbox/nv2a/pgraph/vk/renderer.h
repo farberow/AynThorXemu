@@ -214,6 +214,7 @@ typedef struct PipelineBinding {
     VkRenderPass render_pass;
     unsigned int draw_time;
     bool has_dynamic_line_width;
+    bool has_dynamic_depth_bias;
 #if OPT_ASYNC_COMPILE
     bool pending;
 #endif
@@ -411,6 +412,7 @@ typedef struct PipelineCreateParams {
     int num_dynamic_states;
 
     bool has_dynamic_line_width;
+    bool has_dynamic_depth_bias;
 
     VkPipelineLayout layout;
     VkRenderPass render_pass;
@@ -924,6 +926,10 @@ typedef struct ReorderWindowEntry {
 #endif
     bool has_dynamic_line_width;
     float line_width;
+
+    bool has_dynamic_depth_bias;
+    float depth_bias_constant;
+    float depth_bias_slope;
 
     VkViewport viewport;
     VkRect2D scissor;

@@ -1052,10 +1052,10 @@
               android:textColor="@color/xemu_text_muted" />
 
             <com.google.android.material.materialswitch.MaterialSwitch
-              android:id="@+id/switch_legacy_opengl_depth"
+              android:id="@+id/switch_legacy_depth_path"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"
-              android:text="@string/settings_legacy_opengl_depth"
+              android:text="@string/settings_legacy_depth_path"
               android:textColor="@color/xemu_text_muted" />
 
             <TextView
@@ -1063,7 +1063,7 @@
               android:layout_height="wrap_content"
               android:layout_marginTop="4dp"
               android:layout_marginBottom="12dp"
-              android:text="@string/settings_legacy_opengl_depth_hint"
+              android:text="@string/settings_legacy_depth_path_hint"
               android:textAppearance="@style/TextAppearance.Material3.BodySmall"
               android:textColor="@color/xemu_text_muted" />
 

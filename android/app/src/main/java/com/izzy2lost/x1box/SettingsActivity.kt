@@ -331,8 +331,8 @@ class SettingsActivity : AppCompatActivity() {
     val switchFrameSkip    = findViewById<MaterialSwitch>(R.id.switch_frame_skip)
     val switchSkipOcclusion =
       findViewById<MaterialSwitch>(R.id.switch_skip_occlusion_queries)
-    val switchLegacyOpenGlDepth =
-      findViewById<MaterialSwitch>(R.id.switch_legacy_opengl_depth)
+    val switchLegacyDepthPath =
+      findViewById<MaterialSwitch>(R.id.switch_legacy_depth_path)
     val toggleTextureCache =
       findViewById<MaterialButtonToggleGroup>(R.id.toggle_texture_cache)
     val btnSubmitFrames    = findViewById<MaterialButton>(R.id.btn_submit_frames)
@@ -467,8 +467,8 @@ class SettingsActivity : AppCompatActivity() {
     switchFrameSkip.isChecked    = prefs.getBoolean("frame_skip", false)
     switchSkipOcclusion.isChecked =
       prefs.getBoolean("skip_occlusion_queries", false)
-    switchLegacyOpenGlDepth.isChecked =
-      prefs.getBoolean("legacy_opengl_depth", true)
+    switchLegacyDepthPath.isChecked =
+      prefs.getBoolean("legacy_depth_path", true)
     when (normalizeTextureCacheValue(prefs.getInt("texture_cache_size", 0))) {
       512 -> toggleTextureCache.check(R.id.btn_texture_cache_512)
       1024 -> toggleTextureCache.check(R.id.btn_texture_cache_1024)
@@ -635,7 +635,7 @@ class SettingsActivity : AppCompatActivity() {
         .putBoolean("async_compile", switchAsyncCompile.isChecked)
         .putBoolean("frame_skip", switchFrameSkip.isChecked)
         .putBoolean("skip_occlusion_queries", switchSkipOcclusion.isChecked)
-        .putBoolean("legacy_opengl_depth", switchLegacyOpenGlDepth.isChecked)
+        .putBoolean("legacy_depth_path", switchLegacyDepthPath.isChecked)
         .putInt("submit_frames", selectedSubmitFrames)
         .putInt("tier1_threshold", selectedTier1Threshold)
         .putInt("texture_cache_size", selectedTextureCache)
@@ -735,7 +735,7 @@ class SettingsActivity : AppCompatActivity() {
       .putBoolean("draw_merge", true)
       .putBoolean("async_compile", false)
       .putBoolean("frame_skip", false)
-      .putBoolean("legacy_opengl_depth", true)
+      .putBoolean("legacy_depth_path", true)
       .putBoolean("setting_cache_shaders", true)
       .putBoolean("setting_hard_fpu", true)
       .putBoolean("setting_vsync", false)
@@ -1278,8 +1278,8 @@ class SettingsActivity : AppCompatActivity() {
       ?.let { editor.putBoolean("setting_hard_fpu", it) }
     parseTomlBoolean(sections, "perf", "skip_occlusion_queries")
       ?.let { editor.putBoolean("skip_occlusion_queries", it) }
-    parseTomlBoolean(sections, "perf", "legacy_opengl_depth")
-      ?.let { editor.putBoolean("legacy_opengl_depth", it) }
+    parseTomlBoolean(sections, "perf", "legacy_depth_path")
+      ?.let { editor.putBoolean("legacy_depth_path", it) }
     parseTomlInt(sections, "perf", "texture_cache_size")
       ?.let(::normalizeTextureCacheValue)
       ?.let { editor.putInt("texture_cache_size", it) }
