@@ -1429,12 +1429,13 @@ static void create_texture(PGRAPHState *pg, int texture_idx)
     } else {
         LruNode *node = lru_lookup(&r->texture_cache, key_hash, &key);
         if (!node) {
-            /* Every slot is locked by in-flight frames. Drain them so
-             * entries become evictable and retry once — silently
-             * skipping leaves whatever was last bound in place, which
-             * shows up as flashing or wrong textures in Fable, Conker,
-             * and other titles that push the cache hard. */
-            pgraph_vk_flush_all_frames(pg);
+            /* Every slot is locked by in-flight frames. Drain once per
+             * submit count so a saturated cache doesn't keep forcing
+             * global GPU idles on every bind attempt in the same burst. */
+            if (r->last_texture_cache_flush_submit != r->submit_count) {
+                pgraph_vk_flush_all_frames(pg);
+                r->last_texture_cache_flush_submit = r->submit_count;
+            }
             node = lru_lookup(&r->texture_cache, key_hash, &key);
             if (!node) {
                 return;
@@ -2218,6 +2219,7 @@ static void texture_cache_init(PGRAPHVkState *r)
     lru_init(&r->texture_cache, texture_hash_buckets);
     QTAILQ_INIT(&r->texture_active_list);
     image_pool_init(r);
+    r->last_texture_cache_flush_submit = UINT64_MAX;
     r->texture_cache_entries = g_malloc_n(texture_cache_size, sizeof(TextureBinding));
     assert(r->texture_cache_entries != NULL);
     for (int i = 0; i < texture_cache_size; i++) {

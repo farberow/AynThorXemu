@@ -168,10 +168,26 @@ class PerGameSettingsActivity : AppCompatActivity() {
         options = booleanOptions(),
       ),
       SettingField(
+        key = "fast_fences",
+        inputLayoutId = R.id.input_per_game_fast_fences,
+        dropdownId = R.id.dropdown_per_game_fast_fences,
+        options = booleanOptions(),
+      ),
+      SettingField(
         key = "async_compile",
         inputLayoutId = R.id.input_per_game_async_compile,
         dropdownId = R.id.dropdown_per_game_async_compile,
         options = booleanOptions(),
+      ),
+      SettingField(
+        key = "submit_frames",
+        inputLayoutId = R.id.input_per_game_submit_frames,
+        dropdownId = R.id.dropdown_per_game_submit_frames,
+        options = listOf(
+          SettingOption(null, R.string.per_game_settings_use_global),
+          SettingOption("2", R.string.settings_submit_frames_2),
+          SettingOption("3", R.string.settings_submit_frames_3),
+        ),
       ),
       SettingField(
         key = "setting_use_dsp",
@@ -304,7 +320,9 @@ class PerGameSettingsActivity : AppCompatActivity() {
       "setting_skip_boot_anim" -> prefs.getBoolean(key, true).toString()
       "draw_reorder" -> prefs.getBoolean(key, true).toString()
       "draw_merge" -> prefs.getBoolean(key, true).toString()
+      "fast_fences" -> prefs.getBoolean(key, true).toString()
       "async_compile" -> prefs.getBoolean(key, false).toString()
+      "submit_frames" -> prefs.getInt(key, 2).toString()
       "setting_audio_driver" -> prefs.getString(key, "openslES") ?: "openslES"
       "setting_network_enable" -> prefs.getBoolean(key, false).toString()
       "setting_gpu_driver" -> {

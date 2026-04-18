@@ -32,6 +32,10 @@ extern "C" void xemu_set_fp_safe(bool enable);
 extern "C" bool xemu_get_fp_safe(void);
 extern "C" void xemu_set_fast_fences(bool enable);
 extern "C" bool xemu_get_fast_fences(void);
+extern "C" void xemu_set_skip_occlusion_queries(bool enable);
+extern "C" bool xemu_get_skip_occlusion_queries(void);
+extern "C" void xemu_set_texture_cache_size(int size);
+extern "C" int xemu_get_texture_cache_size(void);
 extern "C" void xemu_set_fp_jit(bool enable);
 extern "C" bool xemu_get_fp_jit(void);
 extern "C" void xemu_set_draw_reorder(bool enable);
@@ -48,6 +52,8 @@ extern "C" void xemu_set_submit_frames(int count);
 extern "C" int xemu_get_submit_frames(void);
 extern "C" void xemu_set_tier1_threshold(int value);
 extern "C" int xemu_get_tier1_threshold(void);
+extern "C" void nv2a_set_simple_vblank(bool enable);
+extern "C" bool nv2a_get_simple_vblank(void);
 extern "C" bool runstate_is_running(void);
 extern "C" void xemu_android_pause_emulation(void);
 extern "C" void xemu_android_resume_emulation(void);
@@ -491,6 +497,29 @@ static int GetPrefInt(JNIEnv* env, jobject activity, const char* key, int defaul
   if (HasException(env, "getSharedPreferences") || !prefs) return defaultValue;
 
   jclass prefsClass = env->GetObjectClass(prefs);
+
+  // Check for per-game runtime override (stored as string)
+  jmethodID getStringMethod = env->GetMethodID(
+      prefsClass, "getString", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+  if (getStringMethod) {
+    std::string runtimeKeyStr = std::string("runtime_override_") + key;
+    jstring jRuntimeKey = env->NewStringUTF(runtimeKeyStr.c_str());
+    jstring override = static_cast<jstring>(
+        env->CallObjectMethod(prefs, getStringMethod, jRuntimeKey, nullptr));
+    env->DeleteLocalRef(jRuntimeKey);
+    if (!HasException(env, "SharedPreferences.getString") && override) {
+      std::string overrideStr = JStringToString(env, override);
+      env->DeleteLocalRef(override);
+      if (!overrideStr.empty()) {
+        char *end = nullptr;
+        long parsed = strtol(overrideStr.c_str(), &end, 10);
+        if (end && *end == '\0' && parsed >= INT_MIN && parsed <= INT_MAX) {
+          return static_cast<int>(parsed);
+        }
+      }
+    }
+  }
+
   jmethodID getInt = env->GetMethodID(prefsClass, "getInt", "(Ljava/lang/String;I)I");
   if (!getInt) return defaultValue;
 
@@ -662,6 +691,7 @@ struct SetupFiles {
 struct DisplaySettings {
   int surface_scale = 1;
   int mem_limit_mib = 64;
+  int texture_cache_size = 0;
   bool vsync = false;
   bool unlock_framerate = true;
   bool validation_layers = false;
@@ -671,6 +701,8 @@ struct DisplaySettings {
   bool hrtf = false;
   bool cache_shaders = true;
   bool net_enable = false;
+  bool skip_occlusion_queries = false;
+  bool legacy_opengl_depth = true;
   std::string renderer = "vulkan";
   std::string filtering = "nearest";
   std::string aspect_ratio = "fit";
@@ -764,6 +796,12 @@ static bool WriteConfigToml(const std::string& config_path,
     perf->insert_or_assign("unlock_framerate", ds.unlock_framerate);
     perf->insert_or_assign("fp_jit", ds.fp_jit);
     perf->insert_or_assign("cache_shaders", ds.cache_shaders);
+    perf->insert_or_assign("skip_occlusion_queries",
+                           ds.skip_occlusion_queries);
+    perf->insert_or_assign("legacy_opengl_depth",
+                           ds.legacy_opengl_depth);
+    perf->insert_or_assign("texture_cache_size",
+                           ds.texture_cache_size);
   }
 
   toml::table* net = EnsureTable(tbl, "net");
@@ -978,6 +1016,28 @@ static SetupFiles SyncSetupFiles() {
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "fast fences: %s", fast_fences ? "ON" : "OFF");
 
+  bool skip_oq = GetPrefBool(env, activity, "skip_occlusion_queries", false);
+  ds.skip_occlusion_queries = skip_oq;
+  xemu_set_skip_occlusion_queries(skip_oq);
+  __android_log_print(ANDROID_LOG_INFO, "xemu-android",
+                      "skip occlusion queries: %s", skip_oq ? "ON" : "OFF");
+
+  bool legacy_opengl_depth =
+      GetPrefBool(env, activity, "legacy_opengl_depth", true);
+  ds.legacy_opengl_depth = legacy_opengl_depth;
+  __android_log_print(ANDROID_LOG_INFO, "xemu-android",
+                      "legacy OpenGL depth path: %s",
+                      legacy_opengl_depth ? "ON" : "OFF");
+
+  int tex_cache = GetPrefInt(env, activity, "texture_cache_size", 0);
+  if (tex_cache < 0) {
+    tex_cache = 0;
+  }
+  ds.texture_cache_size = tex_cache;
+  xemu_set_texture_cache_size(tex_cache);
+  __android_log_print(ANDROID_LOG_INFO, "xemu-android",
+                      "texture cache size: %d (0=auto)", tex_cache);
+
   bool draw_reorder = GetPrefBool(env, activity, "draw_reorder", true);
   xemu_set_draw_reorder(draw_reorder);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
@@ -1017,6 +1077,11 @@ static SetupFiles SyncSetupFiles() {
   xemu_set_tier1_threshold(tier1_threshold);
   __android_log_print(ANDROID_LOG_INFO, "xemu-android",
                       "tier1 threshold: %d", tier1_threshold);
+
+  bool simple_vblank = GetPrefBool(env, activity, "simple_vblank", false);
+  nv2a_set_simple_vblank(simple_vblank);
+  __android_log_print(ANDROID_LOG_INFO, "xemu-android",
+                      "simple vblank: %s", simple_vblank ? "ON" : "OFF");
 
   std::string rendererPref = GetPrefString(env, activity, "setting_renderer");
   if (rendererPref.empty()) {

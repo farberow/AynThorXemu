@@ -324,10 +324,21 @@ class SettingsActivity : AppCompatActivity() {
     val switchFpu         = findViewById<MaterialSwitch>(R.id.switch_hard_fpu)
     val switchVsync       = findViewById<MaterialSwitch>(R.id.switch_vsync)
     val switchSkipBootAnim = findViewById<MaterialSwitch>(R.id.switch_skip_boot_anim)
+    val switchFastFences   = findViewById<MaterialSwitch>(R.id.switch_fast_fences)
     val switchDrawReorder  = findViewById<MaterialSwitch>(R.id.switch_draw_reorder)
     val switchDrawMerge    = findViewById<MaterialSwitch>(R.id.switch_draw_merge)
     val switchAsyncCompile = findViewById<MaterialSwitch>(R.id.switch_async_compile)
+    val switchFrameSkip    = findViewById<MaterialSwitch>(R.id.switch_frame_skip)
+    val switchSkipOcclusion =
+      findViewById<MaterialSwitch>(R.id.switch_skip_occlusion_queries)
+    val switchLegacyOpenGlDepth =
+      findViewById<MaterialSwitch>(R.id.switch_legacy_opengl_depth)
+    val toggleTextureCache =
+      findViewById<MaterialButtonToggleGroup>(R.id.toggle_texture_cache)
+    val btnSubmitFrames    = findViewById<MaterialButton>(R.id.btn_submit_frames)
     val switchShowFps      = findViewById<MaterialSwitch>(R.id.switch_show_fps)
+    val btnTier1Threshold  = findViewById<MaterialButton>(R.id.btn_tier1_threshold)
+    val switchSimpleVblank = findViewById<MaterialSwitch>(R.id.switch_simple_vblank)
     switchDebugLogs      = findViewById(R.id.switch_debug_logs)
     val toggleAudioDriver = findViewById<MaterialButtonToggleGroup>(R.id.toggle_audio_driver)
     val btnSave           = findViewById<MaterialButton>(R.id.btn_settings_save)
@@ -448,9 +459,65 @@ class SettingsActivity : AppCompatActivity() {
     switchVsync.isChecked   = prefs.getBoolean("setting_vsync", false)
     switchSkipBootAnim.isChecked =
       prefs.getBoolean("setting_skip_boot_anim", true)
+    switchFastFences.isChecked =
+      prefs.getBoolean("fast_fences", true)
     switchDrawReorder.isChecked  = prefs.getBoolean("draw_reorder", true)
     switchDrawMerge.isChecked    = prefs.getBoolean("draw_merge", true)
     switchAsyncCompile.isChecked = prefs.getBoolean("async_compile", false)
+    switchFrameSkip.isChecked    = prefs.getBoolean("frame_skip", false)
+    switchSkipOcclusion.isChecked =
+      prefs.getBoolean("skip_occlusion_queries", false)
+    switchLegacyOpenGlDepth.isChecked =
+      prefs.getBoolean("legacy_opengl_depth", true)
+    when (normalizeTextureCacheValue(prefs.getInt("texture_cache_size", 0))) {
+      512 -> toggleTextureCache.check(R.id.btn_texture_cache_512)
+      1024 -> toggleTextureCache.check(R.id.btn_texture_cache_1024)
+      2048 -> toggleTextureCache.check(R.id.btn_texture_cache_2048)
+      else -> toggleTextureCache.check(R.id.btn_texture_cache_auto)
+    }
+    var selectedSubmitFrames =
+      normalizeSubmitFramesValue(prefs.getInt("submit_frames", 2))
+    updateSubmitFramesButton(btnSubmitFrames, selectedSubmitFrames)
+    btnSubmitFrames.setOnClickListener {
+      val values = intArrayOf(1, 2, 3)
+      val labels = arrayOf(
+        getString(R.string.settings_submit_frames_1),
+        getString(R.string.settings_submit_frames_2),
+        getString(R.string.settings_submit_frames_3),
+      )
+      showIntChoiceDialog(
+        titleRes = R.string.settings_submit_frames,
+        labels = labels,
+        selectedIndex = values.indexOf(selectedSubmitFrames).coerceAtLeast(0),
+      ) { which ->
+        selectedSubmitFrames = values[which]
+        updateSubmitFramesButton(btnSubmitFrames, selectedSubmitFrames)
+      }
+    }
+    var selectedTier1Threshold =
+      normalizeTier1ThresholdValue(prefs.getInt("tier1_threshold", 64))
+    updateTier1ThresholdButton(btnTier1Threshold, selectedTier1Threshold)
+    btnTier1Threshold.setOnClickListener {
+      val values = intArrayOf(0, 16, 32, 64, 128, 256)
+      val labels = arrayOf(
+        getString(R.string.settings_tier1_threshold_disabled),
+        getString(R.string.settings_tier1_threshold_16),
+        getString(R.string.settings_tier1_threshold_32),
+        getString(R.string.settings_tier1_threshold_64),
+        getString(R.string.settings_tier1_threshold_128),
+        getString(R.string.settings_tier1_threshold_256),
+      )
+      showIntChoiceDialog(
+        titleRes = R.string.settings_tier1_threshold,
+        labels = labels,
+        selectedIndex = values.indexOf(selectedTier1Threshold).coerceAtLeast(0),
+      ) { which ->
+        selectedTier1Threshold = values[which]
+        updateTier1ThresholdButton(btnTier1Threshold, selectedTier1Threshold)
+      }
+    }
+    switchSimpleVblank.isChecked =
+      prefs.getBoolean("simple_vblank", false)
     switchShowFps.isChecked      = prefs.getBoolean("show_fps", false)
     switchDebugLogs.isChecked =
       prefs.getBoolean(DebugLog.PREF_ENABLED, false)
@@ -535,6 +602,12 @@ class SettingsActivity : AppCompatActivity() {
         R.id.btn_renderer_opengl -> "opengl"
         else                     -> "vulkan"
       }
+      val selectedTextureCache = when (toggleTextureCache.checkedButtonId) {
+        R.id.btn_texture_cache_512 -> 512
+        R.id.btn_texture_cache_1024 -> 1024
+        R.id.btn_texture_cache_2048 -> 2048
+        else -> 0
+      }
       val selectedFiltering = when (toggleFiltering.checkedButtonId) {
         R.id.btn_filtering_nearest -> "nearest"
         else                       -> "linear"
@@ -556,9 +629,17 @@ class SettingsActivity : AppCompatActivity() {
         .putBoolean("setting_hard_fpu", switchFpu.isChecked)
         .putBoolean("setting_vsync", switchVsync.isChecked)
         .putBoolean("setting_skip_boot_anim", switchSkipBootAnim.isChecked)
+        .putBoolean("fast_fences", switchFastFences.isChecked)
         .putBoolean("draw_reorder", switchDrawReorder.isChecked)
         .putBoolean("draw_merge", switchDrawMerge.isChecked)
         .putBoolean("async_compile", switchAsyncCompile.isChecked)
+        .putBoolean("frame_skip", switchFrameSkip.isChecked)
+        .putBoolean("skip_occlusion_queries", switchSkipOcclusion.isChecked)
+        .putBoolean("legacy_opengl_depth", switchLegacyOpenGlDepth.isChecked)
+        .putInt("submit_frames", selectedSubmitFrames)
+        .putInt("tier1_threshold", selectedTier1Threshold)
+        .putInt("texture_cache_size", selectedTextureCache)
+        .putBoolean("simple_vblank", switchSimpleVblank.isChecked)
         .putBoolean("show_fps", switchShowFps.isChecked)
         .putBoolean(DebugLog.PREF_ENABLED, enableDebugLogs)
         .putBoolean("setting_network_enable", switchNetworkEnable.isChecked)
@@ -649,19 +730,25 @@ class SettingsActivity : AppCompatActivity() {
 
     prefs.edit()
       .putBoolean("setting_skip_boot_anim", true)
+      .putBoolean("fast_fences", true)
       .putBoolean("draw_reorder", true)
       .putBoolean("draw_merge", true)
       .putBoolean("async_compile", false)
+      .putBoolean("frame_skip", false)
+      .putBoolean("legacy_opengl_depth", true)
       .putBoolean("setting_cache_shaders", true)
       .putBoolean("setting_hard_fpu", true)
       .putBoolean("setting_vsync", false)
       .putBoolean("setting_use_dsp", false)
       .putBoolean("setting_hrtf", false)
+      .putBoolean("simple_vblank", false)
       .putBoolean("setting_network_enable", false)
       .putString("setting_renderer", "vulkan")
       .putString("setting_filtering", "nearest")
       .putString("setting_tcg_thread", "multi")
       .putString("setting_audio_driver", "openslES")
+      .putInt("submit_frames", 2)
+      .putInt("tier1_threshold", 64)
       .putInt("setting_surface_scale", 1)
       .putInt("setting_display_mode", 0)
       .putInt("setting_system_memory_mib", 64)
@@ -1189,6 +1276,13 @@ class SettingsActivity : AppCompatActivity() {
     (parseTomlBoolean(sections, "perf", "fp_jit")
       ?: parseTomlBoolean(sections, "perf", "hard_fpu"))
       ?.let { editor.putBoolean("setting_hard_fpu", it) }
+    parseTomlBoolean(sections, "perf", "skip_occlusion_queries")
+      ?.let { editor.putBoolean("skip_occlusion_queries", it) }
+    parseTomlBoolean(sections, "perf", "legacy_opengl_depth")
+      ?.let { editor.putBoolean("legacy_opengl_depth", it) }
+    parseTomlInt(sections, "perf", "texture_cache_size")
+      ?.let(::normalizeTextureCacheValue)
+      ?.let { editor.putInt("texture_cache_size", it) }
     parseTomlString(sections, "android", "tcg_thread")
       ?.lowercase(Locale.US)
       ?.takeIf { it == "single" || it == "multi" }
@@ -1309,6 +1403,73 @@ class SettingsActivity : AppCompatActivity() {
       "dummy", "disabled" -> "dummy"
       else -> null
     }
+  }
+
+  private fun normalizeTextureCacheValue(rawValue: Int): Int {
+    return when {
+      rawValue <= 0 -> 0
+      rawValue <= 512 -> 512
+      rawValue <= 1024 -> 1024
+      else -> 2048
+    }
+  }
+
+  private fun normalizeSubmitFramesValue(rawValue: Int): Int {
+    return when {
+      rawValue <= 1 -> 1
+      rawValue >= 3 -> 3
+      else -> 2
+    }
+  }
+
+  private fun normalizeTier1ThresholdValue(rawValue: Int): Int {
+    return when {
+      rawValue <= 0 -> 0
+      rawValue <= 16 -> 16
+      rawValue <= 32 -> 32
+      rawValue <= 64 -> 64
+      rawValue <= 128 -> 128
+      else -> 256
+    }
+  }
+
+  private fun updateSubmitFramesButton(button: MaterialButton, value: Int) {
+    button.text = getString(
+      when (normalizeSubmitFramesValue(value)) {
+        1 -> R.string.settings_submit_frames_1
+        3 -> R.string.settings_submit_frames_3
+        else -> R.string.settings_submit_frames_2
+      }
+    )
+  }
+
+  private fun updateTier1ThresholdButton(button: MaterialButton, value: Int) {
+    button.text = getString(
+      when (normalizeTier1ThresholdValue(value)) {
+        0 -> R.string.settings_tier1_threshold_disabled
+        16 -> R.string.settings_tier1_threshold_16
+        32 -> R.string.settings_tier1_threshold_32
+        128 -> R.string.settings_tier1_threshold_128
+        256 -> R.string.settings_tier1_threshold_256
+        else -> R.string.settings_tier1_threshold_64
+      }
+    )
+  }
+
+  private fun showIntChoiceDialog(
+    titleRes: Int,
+    labels: Array<String>,
+    selectedIndex: Int,
+    onSelected: (Int) -> Unit,
+  ) {
+    MaterialAlertDialogBuilder(this)
+      .setTitle(titleRes)
+      .setSingleChoiceItems(labels, selectedIndex) { dialog, which ->
+        onSelected(which)
+        dialog.dismiss()
+      }
+      .setNegativeButton(android.R.string.cancel, null)
+      .show()
   }
 
   private fun setAdvancedExperimentalExpanded(expanded: Boolean) {

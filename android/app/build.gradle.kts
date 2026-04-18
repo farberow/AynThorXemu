@@ -37,28 +37,16 @@ val hostPython3 = sequenceOf(
   "/usr/bin/python3",
 ).filterNotNull().firstOrNull { isUsablePython3(it) }
 
-// Auto-iterating local build counter. Bumped by one each time we actually
-// assemble an APK/bundle or install onto a device, so every build handed to a
-// tester has a unique integer you can read off the bottom screen. The file is
-// gitignored — each developer's counter is their own.
-val buildNumberFile = file("build_number.txt")
-val autoBuildNumber: Int = run {
-  val current = buildNumberFile
-    .takeIf { it.exists() }
-    ?.readText()?.trim()?.toIntOrNull() ?: 0
-  val invoked = gradle.startParameter.taskNames.joinToString(" ").lowercase()
-  val touchesDevice = listOf(
-    "assemble", "install", "bundle", "rundebug"
-  ).any { it in invoked }
-  if (touchesDevice) {
-    val next = current + 1
-    buildNumberFile.parentFile?.mkdirs()
-    buildNumberFile.writeText(next.toString())
-    next
-  } else {
-    current
-  }
+fun String.asBuildConfigString(): String {
+  return "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 }
+
+val appVersionCode = 25
+val appVersionName = "1.2.4"
+
+// Manual build label shown on the bottom screen.
+// Update this every time you cut a build you want to identify explicitly.
+val bottomScreenBuildLabel = "thor-2026-04-18.01"
 
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
@@ -88,10 +76,11 @@ android {
     minSdk = 26
     targetSdk = 36
 
-    versionCode = 25
-    versionName = "1.2.4"
+    versionCode = appVersionCode
+    versionName = appVersionName
 
-    buildConfigField("int", "AUTO_BUILD_NUMBER", "$autoBuildNumber")
+    buildConfigField("String", "BOTTOM_SCREEN_BUILD_LABEL",
+      bottomScreenBuildLabel.asBuildConfigString())
 
     ndk {
       abiFilters += listOf("arm64-v8a")
@@ -107,7 +96,7 @@ android {
         val thorReleaseFlags =
           "-O3 -g0 -fvisibility=hidden -mcpu=cortex-x3 -fno-math-errno"
         arguments += listOf(
-          "-DXEMU_ANDROID_BUILD_ID=$autoBuildNumber",
+          "-DXEMU_ANDROID_BUILD_ID=$appVersionCode",
           "-DXEMU_ENABLE_XISO_CONVERTER=ON",
           "-DCMAKE_C_FLAGS_DEBUG=-O2 -g0",
           "-DCMAKE_CXX_FLAGS_DEBUG=-O2 -g0",

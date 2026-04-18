@@ -22,6 +22,7 @@
 #include "qemu/fast-hash.h"
 #include "hw/xbox/nv2a/nv2a_int.h"
 #include "hw/xbox/nv2a/pgraph/prim_rewrite.h"
+#include "ui/xemu-settings.h"
 #include "debug.h"
 #include "renderer.h"
 
@@ -227,12 +228,47 @@ void pgraph_gl_draw_begin(NV2AState *d)
                     & NV_PGRAPH_SETUPRASTER_FRONTFACE
                         ? GL_CW : GL_CCW);
 
-    /* Polygon offset is handled in geometry and fragment shaders explicitly */
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    if (g_config.perf.legacy_opengl_depth) {
+        bool polygon_offset_enabled = false;
+
+        if (pgraph_reg_r(pg, NV_PGRAPH_SETUPRASTER) &
+                NV_PGRAPH_SETUPRASTER_POFFSETFILLENABLE) {
+            glEnable(GL_POLYGON_OFFSET_FILL);
+            polygon_offset_enabled = true;
+        } else {
+            glDisable(GL_POLYGON_OFFSET_FILL);
+        }
 #ifndef __ANDROID__ /* GL_POLYGON_OFFSET_LINE/POINT not valid in GLES 3.x */
-    glDisable(GL_POLYGON_OFFSET_LINE);
-    glDisable(GL_POLYGON_OFFSET_POINT);
+        if (pgraph_reg_r(pg, NV_PGRAPH_SETUPRASTER) &
+                NV_PGRAPH_SETUPRASTER_POFFSETLINEENABLE) {
+            glEnable(GL_POLYGON_OFFSET_LINE);
+            polygon_offset_enabled = true;
+        } else {
+            glDisable(GL_POLYGON_OFFSET_LINE);
+        }
+        if (pgraph_reg_r(pg, NV_PGRAPH_SETUPRASTER) &
+                NV_PGRAPH_SETUPRASTER_POFFSETPOINTENABLE) {
+            glEnable(GL_POLYGON_OFFSET_POINT);
+            polygon_offset_enabled = true;
+        } else {
+            glDisable(GL_POLYGON_OFFSET_POINT);
+        }
 #endif
+        if (polygon_offset_enabled) {
+            uint32_t zfactor_u32 = pgraph_reg_r(pg, NV_PGRAPH_ZOFFSETFACTOR);
+            GLfloat zfactor = *(float *)&zfactor_u32;
+            uint32_t zbias_u32 = pgraph_reg_r(pg, NV_PGRAPH_ZOFFSETBIAS);
+            GLfloat zbias = *(float *)&zbias_u32;
+            glPolygonOffset(zfactor, zbias);
+        }
+    } else {
+        /* Polygon offset is handled in geometry and fragment shaders explicitly */
+        glDisable(GL_POLYGON_OFFSET_FILL);
+#ifndef __ANDROID__ /* GL_POLYGON_OFFSET_LINE/POINT not valid in GLES 3.x */
+        glDisable(GL_POLYGON_OFFSET_LINE);
+        glDisable(GL_POLYGON_OFFSET_POINT);
+#endif
+    }
 
     /* Depth testing */
     if (depth_test) {

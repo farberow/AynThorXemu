@@ -27,6 +27,7 @@
 #include <math.h>
 
 static bool g_xemu_fast_fences = false;
+static bool g_xemu_skip_occlusion_queries = false;
 static bool g_xemu_draw_reorder = false;
 static bool g_xemu_draw_merge = false;
 static bool g_xemu_bindless_textures = false;
@@ -219,6 +220,16 @@ void xemu_set_fast_fences(bool enable)
 bool xemu_get_fast_fences(void)
 {
     return g_xemu_fast_fences;
+}
+
+void xemu_set_skip_occlusion_queries(bool enable)
+{
+    g_xemu_skip_occlusion_queries = enable;
+}
+
+bool xemu_get_skip_occlusion_queries(void)
+{
+    return g_xemu_skip_occlusion_queries;
 }
 
 void xemu_set_draw_reorder(bool enable)
@@ -3150,19 +3161,27 @@ static void begin_draw(PGRAPHState *pg)
     assert(r->in_command_buffer);
     r->draws_in_cb++;
 
-    // Visibility testing
-    if (!pg->clearing && pg->zpass_pixel_count_enable) {
-        if (r->new_query_needed && r->query_in_flight) {
+    /* Visibility testing (occlusion queries).
+     * When disabled we skip query begin/end transitions, which avoids a large
+     * number of render-pass breaks on tiled mobile GPUs at the cost of less
+     * aggressive visibility culling. */
+    if (!g_xemu_skip_occlusion_queries) {
+        if (!pg->clearing && pg->zpass_pixel_count_enable) {
+            if (r->new_query_needed && r->query_in_flight) {
+                OPT_STAT_INC(rp_break_query);
+                end_render_pass(r);
+                end_query(r);
+            }
+            if (!r->query_in_flight) {
+                OPT_STAT_INC(rp_break_query);
+                end_render_pass(r);
+                begin_query(r);
+            }
+        } else if (r->query_in_flight) {
+            OPT_STAT_INC(rp_break_query);
             end_render_pass(r);
             end_query(r);
         }
-        if (!r->query_in_flight) {
-            end_render_pass(r);
-            begin_query(r);
-        }
-    } else if (r->query_in_flight) {
-        end_render_pass(r);
-        end_query(r);
     }
 
     if (pg->clearing) {

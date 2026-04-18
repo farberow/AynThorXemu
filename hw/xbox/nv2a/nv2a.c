@@ -207,11 +207,50 @@ static int64_t nv2a_calc_vblank_period_ns(NV2AState *d)
     return 16683750;
 }
 
+#ifdef __ANDROID__
+/* Simple VBLANK mode follows the older hakuX/x1_box behavior: fire the
+ * PCRTC interrupt on a fixed cadence and skip the adaptive deferral path. */
+static bool g_simple_vblank_mode = false;
+
+void nv2a_set_simple_vblank(bool enable)
+{
+    g_simple_vblank_mode = enable;
+}
+
+bool nv2a_get_simple_vblank(void)
+{
+    return g_simple_vblank_mode;
+}
+
+static void nv2a_simple_vblank_cb(NV2AState *d)
+{
+    d->pcrtc.pending_interrupts |= NV_PCRTC_INTR_0_VBLANK;
+    d->pcrtc.raster = 0;
+    nv2a_update_irq(d);
+
+    int64_t period = nv2a_calc_vblank_period_ns(d);
+    d->vblank_next_target_ns += period;
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+    if (d->vblank_next_target_ns <= now) {
+        d->vblank_next_target_ns = now + period;
+    }
+    timer_mod(d->vblank_timer, d->vblank_next_target_ns);
+}
+#endif
+
 static int64_t s_last_vblank_fire_ns;
 
 static void nv2a_vblank_timer_cb(void *opaque)
 {
     NV2AState *d = opaque;
+
+#ifdef __ANDROID__
+    if (g_simple_vblank_mode) {
+        nv2a_simple_vblank_cb(d);
+        return;
+    }
+#endif
+
     int64_t period = nv2a_calc_vblank_period_ns(d);
     int64_t now = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
 
@@ -362,6 +401,15 @@ static void nv2a_vga_gfx_update(void *opaque)
 {
     VGACommonState *vga = opaque;
     vga->hw_ops->gfx_update(vga);
+
+#ifdef __ANDROID__
+    if (g_simple_vblank_mode) {
+        NV2AState *d = container_of(vga, NV2AState, vga);
+        d->pcrtc.pending_interrupts |= NV_PCRTC_INTR_0_VBLANK;
+        d->pcrtc.raster = 0;
+        nv2a_update_irq(d);
+    }
+#endif
 }
 
 static void nv2a_init_memory(NV2AState *d, MemoryRegion *ram)

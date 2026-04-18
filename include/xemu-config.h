@@ -289,6 +289,9 @@ struct config {
         bool fp_jit;
         bool cache_shaders;
         bool unlock_framerate;
+        bool skip_occlusion_queries;
+        bool legacy_opengl_depth;
+        int texture_cache_size;
     } perf;
 };
 

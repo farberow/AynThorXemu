@@ -27,6 +27,8 @@ void nv2a_context_init(void);
 void nv2a_android_early_context_init(void);
 bool nv2a_android_copy_readback(uint8_t **buffer, size_t *buffer_size,
                                 int *width, int *height);
+void nv2a_set_simple_vblank(bool enable);
+bool nv2a_get_simple_vblank(void);
 #endif
 int nv2a_get_framebuffer_surface(void);
 void nv2a_release_framebuffer_surface(void);

@@ -21,6 +21,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/xbox/nv2a/pgraph/pgraph.h"
+#include "ui/xemu-settings.h"
 #include "hw/xbox/nv2a/pgraph/prim_rewrite.h"
 #include "geom.h"
 
@@ -43,12 +44,21 @@ void pgraph_glsl_set_geom_state(PGRAPHState *pg, GeomState *state)
 
     state->z_perspective = pgraph_reg_r(pg, NV_PGRAPH_CONTROL_0) &
                            NV_PGRAPH_CONTROL_0_Z_PERSPECTIVE_ENABLE;
+    state->legacy_opengl_fill_passthrough =
+        g_config.display.renderer == CONFIG_DISPLAY_RENDERER_OPENGL &&
+        g_config.perf.legacy_opengl_depth;
 }
 
 bool pgraph_glsl_need_geom(const GeomState *state)
 {
     /* FIXME: Missing support for 2-sided-poly mode */
     assert(state->polygon_front_mode == state->polygon_back_mode);
+
+    if (state->legacy_opengl_fill_passthrough &&
+        state->primitive_mode == PRIM_TYPE_TRIANGLES &&
+        state->polygon_front_mode == POLY_MODE_FILL) {
+        return false;
+    }
 
     switch (state->primitive_mode) {
     case PRIM_TYPE_LINES:

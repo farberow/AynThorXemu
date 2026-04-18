@@ -26,11 +26,13 @@ object PerGameSettingsManager {
     "setting_cache_shaders",
     "setting_hard_fpu",
     "setting_skip_boot_anim",
+    "fast_fences",
     "setting_audio_driver",
     "setting_network_enable",
     "draw_reorder",
     "draw_merge",
     "async_compile",
+    "submit_frames",
   )
 
   fun hasOverrides(context: Context, relativePath: String): Boolean {

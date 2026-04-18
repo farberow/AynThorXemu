@@ -117,6 +117,7 @@ struct OptBisectStats {
     int inline_clear_hits;
     int inline_clear_misses;
     int render_pass_breaks;
+    int rp_break_query;
     int barrier_count;
     int transition_count;
     int finish_calls;
@@ -1237,6 +1238,7 @@ typedef struct PGRAPHVkState {
     ShaderModuleCacheEntry *shader_module_cache_entries;
     size_t shader_module_cache_target;
     size_t texture_cache_target;
+    uint64_t last_texture_cache_flush_submit;
     int image_pool_max;
     int surface_image_pool_max;
 

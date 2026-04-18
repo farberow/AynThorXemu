@@ -31,6 +31,7 @@ typedef struct {
     enum ShaderPolygonMode polygon_back_mode;
     bool smooth_shading;
     bool z_perspective;
+    bool legacy_opengl_fill_passthrough;
 } GeomState;
 
 typedef struct GenGeomGlslOptions {

@@ -51,33 +51,35 @@
     app:layout_constraintTop_toTopOf="@id/dashboard_brand"
     app:layout_constraintBottom_toBottomOf="@id/dashboard_brand" />
 
-  <!-- Auto-iterating build stamp. Reads BuildConfig.AUTO_BUILD_NUMBER so each
-       APK gets a unique integer visible at a glance while testing. -->
-  <TextView
-    android:id="@+id/dashboard_build_number"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="build —"
-    android:textAppearance="@style/TextAppearance.Xemu.Label"
-    android:textColor="@color/xemu_text_muted"
-    android:textSize="10sp"
-    android:fontFeatureSettings="tnum"
-    android:letterSpacing="0.04"
-    app:layout_constraintEnd_toStartOf="@id/dashboard_column_divider"
-    app:layout_constraintTop_toTopOf="@id/dashboard_brand_wedge"
-    app:layout_constraintBottom_toBottomOf="@id/dashboard_brand_wedge" />
+    <TextView
+        android:id="@+id/dashboard_build_number"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:fontFeatureSettings="tnum"
+        android:gravity="start"
+        android:letterSpacing="0.03"
+        android:maxLines="1"
+        android:text="BUILD v1.2.4 • thor-2026-04-18.01"
+        android:textAppearance="@style/TextAppearance.Xemu.Label"
+        android:textColor="@color/xemu_text_muted"
+        android:textSize="11sp"
+        app:layout_constraintEnd_toStartOf="@id/dashboard_column_divider"
+        app:layout_constraintStart_toStartOf="@id/dashboard_brand"
+        app:layout_constraintTop_toBottomOf="@id/dashboard_brand_wedge" />
 
   <!-- Stats row — FPS hero + CPU/GPU small, all inline -->
   <LinearLayout
     android:id="@+id/dashboard_stats"
     android:layout_width="0dp"
     android:layout_height="wrap_content"
-    android:layout_marginTop="18dp"
+    android:layout_marginTop="14dp"
     android:orientation="horizontal"
     android:gravity="bottom"
     app:layout_constraintStart_toStartOf="parent"
     app:layout_constraintEnd_toStartOf="@id/dashboard_column_divider"
-    app:layout_constraintTop_toBottomOf="@id/dashboard_brand_wedge">
+    app:layout_constraintTop_toBottomOf="@id/dashboard_build_number">
 
     <LinearLayout
       android:layout_width="wrap_content"
